@@ -1,7 +1,8 @@
 """
 dashboard/views.py
 ==================
-Role homes, admin reports, doctor / lab / pharmacy monthly reports.
+Role homes, admin reports, doctor / lab / pharmacy monthly reports,
+admin user management (soft actions only).
 """
 
 import csv
@@ -12,13 +13,16 @@ from calendar import monthrange
 from decimal import Decimal
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from accounts.decorators import role_required
+from accounts.models import StaffProfile
 from patients.models import Patient
 from encounters.models import Encounter, VisitLog, Payment as VisitPayment
 from laboratory.models import LabOrder
@@ -115,6 +119,11 @@ STI_KEYWORDS = [
 MALARIA_KEYWORDS = [
     "malaria", "mrdt", "m.rdt", "rdt malaria", "bs for mps",
     "blood slide", "mps", "plasmodium", "malaria parasite",
+]
+
+ABORTION_KEYWORDS = [
+    "abortion", "miscarriage", "evacuate", "evacuation", "mva",
+    "incomplete abortion", "post abort", "pac ",
 ]
 
 
@@ -502,6 +511,162 @@ def _export_report_html(request, report, start, end, d_from, d_to):
 
 
 # ------------------------------------------------------------------
+# Admin: User management (soft actions — no hard delete)
+# ------------------------------------------------------------------
+@login_required
+@role_required("ADMIN")
+def manage_users(request):
+    """List all staff users for soft management."""
+    User = get_user_model()
+    users = User.objects.select_related("staff_profile").order_by("username")
+    context = _ctx(request)
+    context.update({
+        "users": users,
+        "role_choices": StaffProfile.ROLE_CHOICES,
+    })
+    return render(request, "dashboard/manage_users.html", context)
+
+
+@login_required
+@role_required("ADMIN")
+def toggle_user_active(request, user_id):
+    """Activate / deactivate login. Never delete."""
+    if request.method != "POST":
+        return redirect("dashboard:manage_users")
+
+    User = get_user_model()
+    target = get_object_or_404(User, pk=user_id)
+
+    if target.pk == request.user.pk:
+        messages.error(request, "You cannot deactivate your own account.")
+        return redirect("dashboard:manage_users")
+
+    target.is_active = not target.is_active
+    target.save(update_fields=["is_active"])
+
+    if hasattr(target, "staff_profile") and target.staff_profile:
+        target.staff_profile.is_active = target.is_active
+        target.staff_profile.save(update_fields=["is_active", "updated_at"])
+
+    state = "activated" if target.is_active else "deactivated"
+    messages.success(request, f"User '{target.username}' {state}.")
+    return redirect("dashboard:manage_users")
+
+
+@login_required
+@role_required("ADMIN")
+def change_user_role(request, user_id):
+    """Change staff role only."""
+    if request.method != "POST":
+        return redirect("dashboard:manage_users")
+
+    User = get_user_model()
+    target = get_object_or_404(
+        User.objects.select_related("staff_profile"), pk=user_id
+    )
+
+    if target.pk == request.user.pk:
+        messages.error(request, "You cannot change your own role.")
+        return redirect("dashboard:manage_users")
+
+    new_role = (request.POST.get("role") or "").strip().upper()
+    valid = {c[0] for c in StaffProfile.ROLE_CHOICES}
+    if new_role not in valid:
+        messages.error(request, "Invalid role.")
+        return redirect("dashboard:manage_users")
+
+    if not hasattr(target, "staff_profile"):
+        messages.error(request, "User has no staff profile.")
+        return redirect("dashboard:manage_users")
+
+    target.staff_profile.role = new_role
+    target.staff_profile.save(update_fields=["role", "updated_at"])
+    messages.success(
+        request,
+        f"'{target.username}' role → {target.staff_profile.get_role_display()}.",
+    )
+    return redirect("dashboard:manage_users")
+
+
+@login_required
+@role_required("ADMIN")
+def reset_user_password(request, user_id):
+    """Admin sets a new password."""
+    if request.method != "POST":
+        return redirect("dashboard:manage_users")
+
+    User = get_user_model()
+    target = get_object_or_404(User, pk=user_id)
+    password = request.POST.get("password") or ""
+    password2 = request.POST.get("password_confirm") or ""
+
+    if len(password) < 6:
+        messages.error(request, "Password must be at least 6 characters.")
+        return redirect("dashboard:manage_users")
+    if password != password2:
+        messages.error(request, "Passwords do not match.")
+        return redirect("dashboard:manage_users")
+
+    target.set_password(password)
+    target.save()
+    messages.success(request, f"Password reset for '{target.username}'.")
+    return redirect("dashboard:manage_users")
+
+
+@login_required
+@role_required("ADMIN")
+def create_staff_user(request):
+    """Create User + StaffProfile."""
+    if request.method != "POST":
+        return redirect("dashboard:manage_users")
+
+    User = get_user_model()
+    username = (request.POST.get("username") or "").strip()
+    password = request.POST.get("password") or ""
+    role = (request.POST.get("role") or "").strip().upper()
+    first_name = (request.POST.get("first_name") or "").strip()
+    last_name = (request.POST.get("last_name") or "").strip()
+
+    valid = {c[0] for c in StaffProfile.ROLE_CHOICES}
+    if not username or not password:
+        messages.error(request, "Username and password are required.")
+        return redirect("dashboard:manage_users")
+    if role not in valid:
+        messages.error(request, "Invalid role.")
+        return redirect("dashboard:manage_users")
+    if User.objects.filter(username=username).exists():
+        messages.error(request, f"Username '{username}' already exists.")
+        return redirect("dashboard:manage_users")
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                is_staff=True,
+                is_active=True,
+            )
+            profile, created = StaffProfile.objects.get_or_create(
+                user=user,
+                defaults={"role": role, "is_active": True},
+            )
+            if not created:
+                profile.role = role
+                profile.is_active = True
+                profile.save(update_fields=["role", "is_active", "updated_at"])
+        messages.success(
+            request,
+            f"User '{username}' created ({profile.get_role_display()}).",
+        )
+    except Exception as e:
+        messages.error(request, f"Could not create user: {e}")
+
+    return redirect("dashboard:manage_users")
+
+
+# ------------------------------------------------------------------
 # Doctor monthly report
 # ------------------------------------------------------------------
 @login_required
@@ -748,10 +913,6 @@ def lab_report(request):
 @login_required
 @role_required("PHARMACY", "ADMIN")
 def pharmacy_report(request):
-    """
-    Month: drugs dispensed + sex×age.
-    Snapshot: low stock, out of stock, expiring (≤90 days).
-    """
     year, month, today = _parse_year_month(request)
     start, end = _month_bounds(year, month)
     fmt = (request.GET.get("format") or "").strip().lower()
@@ -870,58 +1031,8 @@ def pharmacy_report(request):
         "months": list(range(1, 13)),
         "clinic_name": "Argentina Dispensary",
     })
-    # Use same template for print if print file missing
-    if fmt == "html":
-        return render(request, "dashboard/pharmacy_report.html", context)
     return render(request, "dashboard/pharmacy_report.html", context)
 
-
-# ------------------------------------------------------------------
-# Role homes
-# ------------------------------------------------------------------
-@login_required
-@role_required("RECEPTION", "ADMIN")
-def reception_home(request):
-    today = _today()
-    start, end = _day_bounds(today)
-    pay_field = _payment_time_field()
-    revenue_today, payment_count = _revenue_stats(start, end)
-    revenue_all_time, _ = _revenue_stats()
-    recent_payments = (
-        VisitPayment.objects.select_related("encounter__patient", "received_by")
-        .order_by(f"-{pay_field}")[:10]
-    )
-    context = _ctx(request)
-    context.update({
-        "today": today,
-        "registered_today": Patient.objects.filter(created_at__date=today).count(),
-        "payment_pending": Encounter.objects.filter(status="PAYMENT_PENDING").count(),
-        "total_patients": Patient.objects.filter(is_active=True).count(),
-        "visits_today": Encounter.objects.filter(created_at__date=today).count(),
-        "revenue_today": revenue_today,
-        "payment_count": payment_count,
-        "revenue_all_time": revenue_all_time,
-        "recent_payments": recent_payments,
-    })
-    return render(request, "dashboard/reception_home.html", context)
-
-
-@login_required
-@role_required("PHARMACY", "ADMIN")
-def pharmacy_home(request):
-    waiting = Encounter.objects.filter(
-        status="IN_PROGRESS", current_department="PHARMACY"
-    ).count()
-    low_stock = 0
-    try:
-        from pharmacy.models import Drug
-        drugs = Drug.objects.filter(is_active=True)
-        low_stock = sum(1 for d in drugs if d.stock_quantity <= (d.reorder_level or 0))
-    except Exception:
-        pass
-    context = _ctx(request)
-    context.update({"waiting": waiting, "low_stock": low_stock})
-    return render(request, "dashboard/pharmacy_home.html", context)
 
 # ------------------------------------------------------------------
 # RCH monthly KPI report
@@ -929,11 +1040,6 @@ def pharmacy_home(request):
 @login_required
 @role_required("RCH", "ADMIN")
 def rch_report(request):
-    """
-    RCH KPIs for the selected month + sex × age on RCH visits.
-    - Always counts Encounter with current_department=RCH
-    - KPIs from visit notes keywords; optional rch.* models if present
-    """
     year, month, today = _parse_year_month(request)
     start, end = _month_bounds(year, month)
     fmt = (request.GET.get("format") or "").strip().lower()
@@ -979,7 +1085,6 @@ def rch_report(request):
         if age is not None and age < 5:
             kpis["under5"] += 1
 
-    # Optional dedicated RCH models (safe)
     try:
         from rch import models as rch_models
         for model_name, key in (
@@ -1018,13 +1123,6 @@ def rch_report(request):
         w.writerow(["RCH KPI report", summary["month_name"]])
         for k, v in kpis.items():
             w.writerow([k, v])
-        w.writerow([])
-        w.writerow(["Sex × age – visits"])
-        w.writerow(["Sex"] + band_labels + ["Total"])
-        for sex in ("M", "F", "O"):
-            row = [sex] + [matrix_visits[sex].get(b, 0) for b in band_labels]
-            row.append(sum(matrix_visits[sex].values()))
-            w.writerow(row)
         return response
 
     context = _ctx(request)
@@ -1040,25 +1138,13 @@ def rch_report(request):
     })
     return render(request, "dashboard/rch_report.html", context)
 
+
 # ------------------------------------------------------------------
 # Labour monthly report
 # ------------------------------------------------------------------
-ABORTION_KEYWORDS = [
-    "abortion", "miscarriage", "evacuate", "evacuation", "mva",
-    "incomplete abortion", "post abort", "pac ",
-]
-
-
 @login_required
 @role_required("LABOUR_WARD", "ADMIN")
 def labour_report(request):
-    """
-    Labour ward monthly report:
-    - Labour ward visits
-    - Deliveries (from labour models if present, else labour-ward encounters)
-    - Abortions (notes keywords + model hints)
-    - Sex × age of mothers/clients
-    """
     year, month, today = _parse_year_month(request)
     start, end = _month_bounds(year, month)
     fmt = (request.GET.get("format") or "").strip().lower()
@@ -1074,7 +1160,6 @@ def labour_report(request):
     matrix_delivery = _empty_sex_age_matrix()
     matrix_abortion = _empty_sex_age_matrix()
     seen_clients = set()
-
     delivery_rows = []
     abortion_rows = []
 
@@ -1098,7 +1183,6 @@ def labour_report(request):
                 "detail": (e.notes or "")[:200] or "Abortion-related (notes)",
             })
         else:
-            # Default labour-ward visit counted toward delivery activity
             _inc_matrix(matrix_delivery, pat)
             delivery_rows.append({
                 "date": e.created_at,
@@ -1109,7 +1193,6 @@ def labour_report(request):
                 "detail": (e.notes or "")[:200] or "Labour ward visit",
             })
 
-    # Optional dedicated labour delivery records
     try:
         from labour import models as labour_models
         DeliveryModel = None
@@ -1119,7 +1202,6 @@ def labour_report(request):
                 break
         if DeliveryModel is not None:
             qs = DeliveryModel.objects.filter(created_at__range=(start, end))
-            # Prefer delivery_at if field exists
             if hasattr(DeliveryModel, "delivery_at"):
                 qs = DeliveryModel.objects.filter(
                     Q(created_at__range=(start, end))
@@ -1170,22 +1252,6 @@ def labour_report(request):
         w.writerow(["Unique clients", summary["unique_clients"]])
         w.writerow(["Deliveries / labour activity", summary["deliveries"]])
         w.writerow(["Abortions", summary["abortions"]])
-        w.writerow([])
-        w.writerow(["Delivery / labour list"])
-        w.writerow(["Date", "Patient", "ID", "Sex", "Age", "Detail"])
-        for r in delivery_rows:
-            w.writerow([
-                r["date"].strftime("%Y-%m-%d %H:%M") if r["date"] else "",
-                r["patient"], r["patient_id"], r["sex"], r["age"], r["detail"],
-            ])
-        w.writerow([])
-        w.writerow(["Abortion list"])
-        w.writerow(["Date", "Patient", "ID", "Sex", "Age", "Detail"])
-        for r in abortion_rows:
-            w.writerow([
-                r["date"].strftime("%Y-%m-%d %H:%M") if r["date"] else "",
-                r["patient"], r["patient_id"], r["sex"], r["age"], r["detail"],
-            ])
         return response
 
     context = _ctx(request)
@@ -1202,6 +1268,55 @@ def labour_report(request):
         "clinic_name": "Argentina Dispensary",
     })
     return render(request, "dashboard/labour_report.html", context)
+
+
+# ------------------------------------------------------------------
+# Role homes
+# ------------------------------------------------------------------
+@login_required
+@role_required("RECEPTION", "ADMIN")
+def reception_home(request):
+    today = _today()
+    start, end = _day_bounds(today)
+    pay_field = _payment_time_field()
+    revenue_today, payment_count = _revenue_stats(start, end)
+    revenue_all_time, _ = _revenue_stats()
+    recent_payments = (
+        VisitPayment.objects.select_related("encounter__patient", "received_by")
+        .order_by(f"-{pay_field}")[:10]
+    )
+    context = _ctx(request)
+    context.update({
+        "today": today,
+        "registered_today": Patient.objects.filter(created_at__date=today).count(),
+        "payment_pending": Encounter.objects.filter(status="PAYMENT_PENDING").count(),
+        "total_patients": Patient.objects.filter(is_active=True).count(),
+        "visits_today": Encounter.objects.filter(created_at__date=today).count(),
+        "revenue_today": revenue_today,
+        "payment_count": payment_count,
+        "revenue_all_time": revenue_all_time,
+        "recent_payments": recent_payments,
+    })
+    return render(request, "dashboard/reception_home.html", context)
+
+
+@login_required
+@role_required("PHARMACY", "ADMIN")
+def pharmacy_home(request):
+    waiting = Encounter.objects.filter(
+        status="IN_PROGRESS", current_department="PHARMACY"
+    ).count()
+    low_stock = 0
+    try:
+        from pharmacy.models import Drug
+        drugs = Drug.objects.filter(is_active=True)
+        low_stock = sum(1 for d in drugs if d.stock_quantity <= (d.reorder_level or 0))
+    except Exception:
+        pass
+    context = _ctx(request)
+    context.update({"waiting": waiting, "low_stock": low_stock})
+    return render(request, "dashboard/pharmacy_home.html", context)
+
 
 @login_required
 @role_required("DOCTOR", "ADMIN")
@@ -1246,8 +1361,11 @@ def injection_home(request):
     waiting = Encounter.objects.filter(
         status="IN_PROGRESS", current_department="INJECTION"
     ).count()
+    surgery_waiting = Encounter.objects.filter(
+        status="IN_PROGRESS", current_department="MINOR_SURGERY"
+    ).count()
     context = _ctx(request)
-    context["waiting"] = waiting
+    context.update({"waiting": waiting, "surgery_waiting": surgery_waiting})
     return render(request, "dashboard/injection_home.html", context)
 
 

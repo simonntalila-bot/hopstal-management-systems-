@@ -1,0 +1,645 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Labour case{% endblock %}
+{% block page_title %}Labour case{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ mother.full_name }}</h5>
+        <p class="text-muted mb-0">
+            {{ mother.patient_id }}
+            · <span class="badge text-bg-secondary">{{ case.get_status_display }}</span>
+            {% if case.is_high_risk %}<span class="badge text-bg-danger">High risk</span>{% endif %}
+        </p>
+    </div>
+    <a href="{% url 'labour:queue' %}" class="btn btn-outline-secondary btn-sm">Queue</a>
+</div>
+<ul class="nav nav-pills flex-wrap gap-1 mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'overview' %}active{% endif %}" href="?tab=overview">Overview</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'assessment' %}active{% endif %}" href="?tab=assessment">Assessment</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'partograph' %}active{% endif %}" href="?tab=partograph">Partograph</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'maternal' %}active{% endif %}" href="?tab=maternal">Maternal</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'fetal' %}active{% endif %}" href="?tab=fetal">Fetal</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'meds' %}active{% endif %}" href="?tab=meds">Meds</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'delivery' %}active{% endif %}" href="?tab=delivery">Delivery</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'newborn' %}active{% endif %}" href="?tab=newborn">Newborn</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'complications' %}active{% endif %}" href="?tab=complications">Complications</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'post' %}active{% endif %}" href="?tab=post">Post-delivery</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'referral' %}active{% endif %}" href="?tab=referral">Referral</a>
+    </li>
+</ul>
+
+{% if tab == "overview" %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="row g-3 small">
+            <div class="col-md-3"><span class="text-muted">Admitted</span><br><strong>{{ case.admission_at|date:"d M Y H:i" }}</strong></div>
+            <div class="col-md-2"><span class="text-muted">G/P</span><br><strong>{{ case.gravida|default:"—" }} / {{ case.para|default:"—" }}</strong></div>
+            <div class="col-md-2"><span class="text-muted">GA</span><br><strong>{{ case.gestational_age_weeks|default:"—" }} w</strong></div>
+            <div class="col-md-2"><span class="text-muted">EDD</span><br><strong>{{ case.edd|date:"d M Y"|default:"—" }}</strong></div>
+            <div class="col-md-3"><span class="text-muted">Complaint</span><br><strong>{{ case.presenting_complaint|default:"—" }}</strong></div>
+        </div>
+        <hr>
+        <form method="post" class="d-flex flex-wrap gap-2">
+            {% csrf_token %}
+            <button type="submit" name="action" value="return_doctor" class="btn btn-outline-secondary btn-sm">Return to Doctor</button>
+            <button type="submit" name="action" value="complete_case" class="btn btn-success btn-sm"
+                    onclick="return confirm('Close labour case and complete visit?')">Complete case</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "assessment" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}<input type="hidden" name="action" value="add_assessment">
+    <div class="card-header">New assessment</div>
+    <div class="card-body row g-2">
+        <div class="col-md-2"><label class="form-label small">Dilatation cm</label><input type="number" step="0.5" name="cervical_dilatation_cm" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Effacement</label><input name="effacement" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Station</label><input name="station" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Presentation</label><input name="presentation" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Position</label><input name="position" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Membranes</label><input name="membrane_status" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label small">Liquor</label><input name="liquor" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label small">Contraction freq</label><input name="contraction_frequency" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label small">Duration</label><input name="contraction_duration" class="form-control"></div>
+        <div class="col-12"><label class="form-label small">Maternal condition</label><textarea name="maternal_condition" class="form-control" rows="2"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm">Save assessment</button></div>
+    </div>
+</form>
+<div class="card border-0 shadow-sm">
+    <div class="card-header">History</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Time</th><th>Dilatation</th><th>Station</th><th>Presentation</th><th>Liquor</th></tr></thead>
+            <tbody>
+            {% for a in assessments %}
+            <tr>
+                <td>{{ a.assessed_at|date:"d M H:i" }}</td>
+                <td>{{ a.cervical_dilatation_cm|default:"—" }}</td>
+                <td>{{ a.station|default:"—" }}</td>
+                <td>{{ a.presentation|default:"—" }}</td>
+                <td>{{ a.liquor|default:"—" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">No assessments</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "partograph" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}<input type="hidden" name="action" value="add_partograph">
+    <div class="card-header">Partograph entry</div>
+    <div class="card-body row g-2">
+        <div class="col-md-2"><label class="form-label small">Dilatation</label><input type="number" step="0.5" name="cervical_dilatation_cm" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Descent</label><input name="descent_of_head" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">FHR</label><input type="number" name="fetal_heart_rate" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Contractions</label><input name="contractions" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Pulse</label><input type="number" name="maternal_pulse" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">BP sys</label><input type="number" name="bp_systolic" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">BP dia</label><input type="number" name="bp_diastolic" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Temp</label><input type="number" step="0.1" name="temperature" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Oxytocin</label><input name="oxytocin" class="form-control"></div>
+        <div class="col-md-2 d-flex align-items-end"><div class="form-check"><input type="checkbox" name="alert_flag" class="form-check-input" id="af"><label for="af" class="form-check-label">Alert</label></div></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm">Add entry</button></div>
+    </div>
+</form>
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Partograph log (chart later)</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Time</th><th>Cx</th><th>FHR</th><th>Pulse</th><th>BP</th><th>Alert</th></tr></thead>
+            <tbody>
+            {% for e in partograph %}
+            <tr class="{% if e.alert_flag %}table-warning{% endif %}">
+                <td>{{ e.recorded_at|date:"d M H:i" }}</td>
+                <td>{{ e.cervical_dilatation_cm|default:"—" }}</td>
+                <td>{{ e.fetal_heart_rate|default:"—" }}</td>
+                <td>{{ e.maternal_pulse|default:"—" }}</td>
+                <td>{% if e.bp_systolic %}{{ e.bp_systolic }}/{{ e.bp_diastolic }}{% else %}—{% endif %}</td>
+                <td>{% if e.alert_flag %}Yes{% else %}—{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No entries</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "delivery" %}
+<form method="post" class="card border-0 shadow-sm">
+    {% csrf_token %}<input type="hidden" name="action" value="save_delivery">
+    <div class="card-header">Delivery</div>
+    <div class="card-body row g-2">
+        <div class="col-md-4"><label class="form-label small">Mode</label>
+            <select name="mode" class="form-select">
+                {% for v,l in mode_choices %}
+                <option value="{{ v }}" {% if delivery and delivery.mode == v %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4"><label class="form-label small">EBL (ml)</label>
+            <input type="number" name="estimated_blood_loss_ml" class="form-control" value="{{ delivery.estimated_blood_loss_ml|default_if_none:'' }}">
+        </div>
+        <div class="col-md-4"><label class="form-label small">Perineum</label>
+            <input name="perineum" class="form-control" value="{{ delivery.perineum|default:'' }}">
+        </div>
+        <div class="col-12"><label class="form-label small">Indication / notes</label>
+            <textarea name="delivery_notes" class="form-control" rows="2">{{ delivery.delivery_notes|default:'' }}</textarea>
+        </div>
+        <div class="col-md-3"><div class="form-check mt-2"><input type="checkbox" name="episiotomy" class="form-check-input" id="ep" {% if delivery and delivery.episiotomy %}checked{% endif %}><label for="ep" class="form-check-label">Episiotomy</label></div></div>
+        <div class="col-12"><button class="btn btn-primary">Save delivery</button></div>
+    </div>
+</form>
+{% endif %}
+
+{% if tab == "newborn" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}<input type="hidden" name="action" value="add_newborn">
+    <div class="card-header">Add newborn</div>
+    <div class="card-body row g-2">
+        <div class="col-md-2"><label class="form-label small">Sex</label>
+            <select name="sex" class="form-select"><option value="M">Male</option><option value="F">Female</option><option value="U">Unknown</option></select>
+        </div>
+        <div class="col-md-2"><label class="form-label small">Weight kg</label><input type="number" step="0.001" name="birth_weight_kg" class="form-control"></div>
+        <div class="col-md-2"><label class="form-label small">Apgar 1</label><input type="number" name="apgar_1" class="form-control" min="0" max="10"></div>
+        <div class="col-md-2"><label class="form-label small">Apgar 5</label><input type="number" name="apgar_5" class="form-control" min="0" max="10"></div>
+        <div class="col-md-2"><label class="form-label small">Status</label><input name="birth_status" class="form-control" placeholder="Live birth"></div>
+        <div class="col-md-2 d-flex align-items-end"><div class="form-check"><input type="checkbox" name="resuscitation" class="form-check-input" id="res"><label for="res" class="form-check-label">Resuscitation</label></div></div>
+        <div class="col-12"><label class="form-label small">Condition</label><textarea name="condition_notes" class="form-control" rows="2"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm">Add newborn</button></div>
+    </div>
+</form>
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Newborns</div>
+    <ul class="list-group list-group-flush">
+        {% for n in newborns %}
+        <li class="list-group-item">
+            #{{ n.birth_order }} · {{ n.get_sex_display }} · {{ n.birth_weight_kg|default:"—" }} kg
+            · Apgar {{ n.apgar_1|default:"—" }}/{{ n.apgar_5|default:"—" }}
+            · {{ n.birth_status|default:"" }}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No newborns recorded</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if tab == "complications" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}<input type="hidden" name="action" value="add_complication">
+    <div class="card-header">Record complication</div>
+    <div class="card-body row g-2">
+        <div class="col-md-4"><label class="form-label small">Category</label><input name="category" class="form-control" placeholder="e.g. PPH"></div>
+        <div class="col-12"><label class="form-label small">Description</label><textarea name="description" class="form-control" rows="2" required></textarea></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm">Save</button></div>
+    </div>
+</form>
+<ul class="list-group shadow-sm">
+    {% for c in complications %}
+    <li class="list-group-item"><strong>{{ c.category|default:"Note" }}</strong> — {{ c.description }}
+        <div class="small text-muted">{{ c.recorded_at|date:"d M H:i" }}</div></li>
+    {% empty %}<li class="list-group-item text-muted">None</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if tab == "maternal" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_maternal_obs">
+    <div class="card-header">Maternal observation</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-2">
+                <label class="form-label small">BP systolic</label>
+                <input type="number" name="bp_systolic" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">BP diastolic</label>
+                <input type="number" name="bp_diastolic" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Pulse</label>
+                <input type="number" name="pulse" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Resp. rate</label>
+                <input type="number" name="respiratory_rate" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Temp °C</label>
+                <input type="number" step="0.1" name="temperature" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">SpO₂ %</label>
+                <input type="number" name="spo2" class="form-control" min="0" max="100">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Pain (0–10)</label>
+                <input type="number" name="pain_score" class="form-control" min="0" max="10">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Consciousness</label>
+                <input type="text" name="consciousness" class="form-control" placeholder="Alert / Drowsy">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Urine (ml)</label>
+                <input type="number" name="urine_output_ml" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Bleeding</label>
+                <input type="text" name="bleeding" class="form-control" placeholder="None / Mild / Heavy">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="alert_flag" class="form-check-input" id="m_alert">
+                    <label class="form-check-label" for="m_alert">Flag for review</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label small">General condition</label>
+                <textarea name="general_condition" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary btn-sm">Save observation</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Maternal log</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Time</th>
+                    <th>BP</th>
+                    <th>Pulse</th>
+                    <th>RR</th>
+                    <th>Temp</th>
+                    <th>SpO₂</th>
+                    <th>Pain</th>
+                    <th>Bleeding</th>
+                    <th>Alert</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in maternal_obs %}
+                <tr class="{% if o.alert_flag %}table-warning{% endif %}">
+                    <td class="ps-3">{{ o.recorded_at|date:"d M H:i" }}</td>
+                    <td>{% if o.bp_systolic %}{{ o.bp_systolic }}/{{ o.bp_diastolic }}{% else %}—{% endif %}</td>
+                    <td>{{ o.pulse|default:"—" }}</td>
+                    <td>{{ o.respiratory_rate|default:"—" }}</td>
+                    <td>{{ o.temperature|default:"—" }}</td>
+                    <td>{{ o.spo2|default:"—" }}</td>
+                    <td>{{ o.pain_score|default:"—" }}</td>
+                    <td>{{ o.bleeding|default:"—" }}</td>
+                    <td>{% if o.alert_flag %}<span class="badge text-bg-warning">Yes</span>{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" class="text-center text-muted py-3">No observations yet</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "fetal" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_fetal_obs">
+    <div class="card-header">Fetal observation</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-2">
+                <label class="form-label small">FHR (bpm)</label>
+                <input type="number" name="fetal_heart_rate" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Fetal movement</label>
+                <input type="text" name="fetal_movement" class="form-control" placeholder="Present / Reduced">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Presentation</label>
+                <input type="text" name="presentation" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Position</label>
+                <input type="text" name="position" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Station</label>
+                <input type="text" name="station" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Liquor</label>
+                <input type="text" name="liquor" class="form-control" placeholder="Clear / Meconium">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="alert_flag" class="form-check-input" id="f_alert">
+                    <label class="form-check-label" for="f_alert">Flag for review</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Distress / notes</label>
+                <textarea name="distress_notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary btn-sm">Save observation</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Fetal log</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Time</th>
+                    <th>FHR</th>
+                    <th>Movement</th>
+                    <th>Presentation</th>
+                    <th>Liquor</th>
+                    <th>Alert</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in fetal_obs %}
+                <tr class="{% if o.alert_flag %}table-warning{% endif %}">
+                    <td class="ps-3">{{ o.recorded_at|date:"d M H:i" }}</td>
+                    <td>{{ o.fetal_heart_rate|default:"—" }}</td>
+                    <td>{{ o.fetal_movement|default:"—" }}</td>
+                    <td>{{ o.presentation|default:"—" }}</td>
+                    <td>{{ o.liquor|default:"—" }}</td>
+                    <td>{% if o.alert_flag %}<span class="badge text-bg-warning">Yes</span>{% else %}—{% endif %}</td>
+                    <td class="small">{{ o.distress_notes|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-3">No observations yet</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "meds" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_medication">
+    <div class="card-header">Record medication / intervention</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label small">Drug / item</label>
+                <input type="text" name="drug_name" class="form-control" required placeholder="e.g. Oxytocin, IV fluid">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Dose</label>
+                <input type="text" name="dose" class="form-control" placeholder="e.g. 10 IU">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Route</label>
+                <input type="text" name="route" class="form-control" placeholder="IV / IM / PO">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Indication</label>
+                <input type="text" name="indication" class="form-control">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary btn-sm">Record</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Medication log</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Time</th>
+                    <th>Drug</th>
+                    <th>Dose</th>
+                    <th>Route</th>
+                    <th>Indication</th>
+                    <th>By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in medications %}
+                <tr>
+                    <td class="ps-3">{{ m.given_at|date:"d M H:i" }}</td>
+                    <td><strong>{{ m.drug_name }}</strong></td>
+                    <td>{{ m.dose|default:"—" }}</td>
+                    <td>{{ m.route|default:"—" }}</td>
+                    <td class="small">{{ m.indication|default:"—" }}</td>
+                    <td class="small">{% if m.administered_by %}{{ m.administered_by }}{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-3">No medications recorded</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "post" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_post_care">
+    <div class="card-header">Post-delivery assessment</div>
+    <div class="card-body">
+        <h6 class="text-muted small text-uppercase mb-2">Mother</h6>
+        <div class="row g-2 mb-3">
+            <div class="col-md-2">
+                <label class="form-label small">BP sys</label>
+                <input type="number" name="mother_bp_systolic" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">BP dia</label>
+                <input type="number" name="mother_bp_diastolic" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Pulse</label>
+                <input type="number" name="mother_pulse" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Bleeding</label>
+                <input type="text" name="bleeding" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Uterus</label>
+                <input type="text" name="uterus" class="form-control" placeholder="Contracted / Atonic">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Pain</label>
+                <input type="text" name="pain" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Perineum / wound</label>
+                <input type="text" name="perineum_wound" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Breastfeeding</label>
+                <input type="text" name="breastfeeding" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Disposition</label>
+                <input type="text" name="disposition" class="form-control" placeholder="Ward / Discharge / NICU">
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Mother medications</label>
+                <input type="text" name="mother_medications" class="form-control">
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Mother condition</label>
+                <textarea name="mother_condition" class="form-control" rows="2"></textarea>
+            </div>
+        </div>
+
+        <h6 class="text-muted small text-uppercase mb-2">Baby</h6>
+        <div class="row g-2">
+            <div class="col-md-3">
+                <label class="form-label small">Feeding</label>
+                <input type="text" name="baby_feeding" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Temp °C</label>
+                <input type="number" step="0.1" name="baby_temperature" class="form-control">
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Baby notes</label>
+                <textarea name="baby_notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary btn-sm">Save post-delivery care</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Post-delivery log</div>
+    <div class="list-group list-group-flush">
+        {% for p in post_care %}
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between">
+                <strong>{{ p.recorded_at|date:"d M Y H:i" }}</strong>
+                <span class="small text-muted">{{ p.disposition|default:"" }}</span>
+            </div>
+            <div class="small mt-1">
+                BP {% if p.mother_bp_systolic %}{{ p.mother_bp_systolic }}/{{ p.mother_bp_diastolic }}{% else %}—{% endif %}
+                · Bleeding {{ p.bleeding|default:"—" }}
+                · Uterus {{ p.uterus|default:"—" }}
+                · BF {{ p.breastfeeding|default:"—" }}
+            </div>
+            {% if p.mother_condition %}<div class="small text-muted">{{ p.mother_condition }}</div>{% endif %}
+        </div>
+        {% empty %}
+        <div class="list-group-item text-muted text-center py-3">No post-delivery records</div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if tab == "referral" %}
+<form method="post" class="card border-0 shadow-sm mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_referral">
+    <div class="card-header">Referral / transfer out</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-12">
+                <label class="form-label small">Reason for referral</label>
+                <textarea name="reason" class="form-control" rows="2" required></textarea>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Receiving facility</label>
+                <input type="text" name="receiving_facility" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Transport</label>
+                <input type="text" name="transport" class="form-control" placeholder="Ambulance / Private">
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Maternal condition</label>
+                <textarea name="maternal_condition" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Fetal / newborn condition</label>
+                <textarea name="fetal_newborn_condition" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Treatment already given</label>
+                <textarea name="treatment_given" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Notes</label>
+                <textarea name="notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-warning"
+                        onclick="return confirm('Record referral and mark case as referred?')">
+                    Save referral
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header">Referral history</div>
+    <div class="list-group list-group-flush">
+        {% for r in referrals %}
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between">
+                <strong>{{ r.referred_at|date:"d M Y H:i" }}</strong>
+                <span class="small">{{ r.receiving_facility|default:"" }}</span>
+            </div>
+            <div class="mt-1">{{ r.reason }}</div>
+            {% if r.referred_by %}<div class="small text-muted">By {{ r.referred_by }}</div>{% endif %}
+        </div>
+        {% empty %}
+        <div class="list-group-item text-muted text-center py-3">No referrals</div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+
+
+{% endblock %}

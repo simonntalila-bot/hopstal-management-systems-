@@ -1,0 +1,63 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Collect Sample{% endblock %}
+{% block page_title %}Collect Sample{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="text-primary">{{ patient.patient_id }}</span> · Sample Collection
+        </p>
+    </div>
+    <a href="{% url 'laboratory:lab_queue' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">Ordered Tests</div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    {% for item in items %}
+                    <li class="list-group-item px-0">
+                        <strong>{{ item.test.code }}</strong> – {{ item.test.name }}
+                        {% if item.test.sample_type %}
+                            <br><small class="text-muted">{{ item.test.sample_type }}</small>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if order.clinical_notes %}
+                <hr>
+                <small class="text-muted d-block">Clinical notes</small>
+                {{ order.clinical_notes }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">Sample Details</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Sample Number <span class="text-danger">*</span></label>
+                        <input type="text" name="sample_number" class="form-control form-control-lg"
+                               value="{{ suggested_sample_number }}" required>
+                        <div class="form-text">Format: LB-YYYY-NNNNNN</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i> Confirm Sample Collected
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

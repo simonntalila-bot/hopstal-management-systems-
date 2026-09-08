@@ -1,0 +1,83 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block page_title %}Drug Inventory{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Inventory</h5>
+        <p class="text-muted mb-0 small">
+            {% if low_count %}<span class="text-warning me-2">{{ low_count }} low stock</span>{% endif %}
+            {% if expiring_count %}<span class="text-warning me-2">{{ expiring_count }} expiring ≤90d</span>{% endif %}
+            {% if expired_count %}<span class="text-danger">{{ expired_count }} expired</span>{% endif %}
+        </p>
+    </div>
+    <div class="btn-group">
+        <a href="?show=active" class="btn btn-sm btn-outline-primary {% if show == 'active' %}active{% endif %}">Active</a>
+        <a href="?show=inactive" class="btn btn-sm btn-outline-secondary {% if show == 'inactive' %}active{% endif %}">Inactive</a>
+        <a href="?show=all" class="btn btn-sm btn-outline-secondary {% if show == 'all' %}active{% endif %}">All</a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Medicine</th>
+                    <th>Form</th>
+                    <th>Stock</th>
+                    <th>Reorder</th>
+                    <th>Expiry</th>
+                    <th>Status</th>
+                    <th class="text-end pe-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in drugs %}
+                <tr class="{% if d.is_expired %}table-danger{% elif d.is_expiring_soon %}table-warning{% elif d.is_low_stock %}table-warning{% endif %}">
+                    <td class="ps-3">
+                        <strong>{{ d.name }}</strong>
+                        {% if d.strength %}<span class="text-muted"> {{ d.strength }}</span>{% endif %}
+                    </td>
+                    <td class="small">{{ d.form|default:"—" }}</td>
+                    <td>
+                        {% if d.is_low_stock %}
+                        <span class="badge text-bg-warning">{{ d.stock_quantity }}</span>
+                        {% else %}
+                        <span class="badge text-bg-success">{{ d.stock_quantity }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ d.reorder_level }}</td>
+                    <td class="small">
+                        {% if d.expiry_date %}
+                            {{ d.expiry_date|date:"d M Y" }}
+                            {% if d.is_expired %}<span class="badge text-bg-danger">Expired</span>
+                            {% elif d.is_expiring_soon %}<span class="badge text-bg-warning text-dark">Soon</span>{% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if d.is_active %}
+                        <span class="badge text-bg-success">Active</span>
+                        {% else %}
+                        <span class="badge text-bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-3">
+                        <a href="{% url 'pharmacy:stock_adjust' d.pk %}" class="btn btn-sm btn-outline-primary">Stock</a>
+                        <form method="post" action="{% url 'pharmacy:toggle_drug' d.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-{% if d.is_active %}secondary{% else %}success{% endif %}">
+                                {% if d.is_active %}Deactivate{% else %}Activate{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No medicines found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

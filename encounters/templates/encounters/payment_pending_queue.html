@@ -1,0 +1,61 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Payment Pending{% endblock %}
+{% block page_title %}Payment Pending Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Waiting for Payment</h5>
+        <p class="text-muted mb-0">Collect payment before patient can see the department</p>
+    </div>
+    <span class="badge bg-warning text-dark fs-6 px-3 py-2">{{ queue|length }} pending</span>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">#</th>
+                        <th>Patient ID</th>
+                        <th>Full Name</th>
+                        <th>Target Department</th>
+                        <th>Waiting Since</th>
+                        <th class="text-end pe-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for encounter in queue %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+                        <td><strong class="text-primary">{{ encounter.patient.patient_id }}</strong></td>
+                        <td>{{ encounter.patient.full_name }}</td>
+                        <td>
+                            <span class="badge bg-info-subtle text-info">
+                                {{ encounter.get_current_department_display }}
+                            </span>
+                        </td>
+                        <td>{{ encounter.created_at|timesince }} ago</td>
+                        <td class="text-end pe-4">
+                            <a href="{% url 'encounters:collect_payment' encounter.pk %}"
+                               class="btn btn-sm btn-success">
+                                <i class="bi bi-cash me-1"></i> Collect Payment
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-cash-stack fs-1 d-block mb-2 opacity-50"></i>
+                            No patients waiting for payment.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

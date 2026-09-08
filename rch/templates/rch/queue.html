@@ -1,0 +1,44 @@
+{% extends "dashboard/base.html" %}
+{% block title %}RCH Queue{% endblock %}
+{% block page_title %}RCH Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">RCH worklist</h5>
+        <p class="text-muted mb-0">Paid clients waiting</p>
+    </div>
+    <span class="badge bg-primary px-3 py-2">{{ visits|length }}</span>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Client</th>
+                    <th>ID</th>
+                    <th>Waiting</th>
+                    <th class="text-end pe-3">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in visits %}
+                <tr>
+                    <td class="ps-3"><strong>{{ v.patient.full_name }}</strong></td>
+                    <td class="text-primary">{{ v.patient.patient_id }}</td>
+                    <td>{{ v.created_at|timesince }} ago</td>
+                    <td class="text-end pe-3">
+                        <a href="{% url 'rch:service_start' v.pk %}" class="btn btn-sm btn-primary">Open</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-5">No clients waiting.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

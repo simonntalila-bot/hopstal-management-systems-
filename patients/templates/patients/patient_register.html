@@ -1,0 +1,105 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Register Patient{% endblock %}
+{% block page_title %}Register New Patient{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Register New Patient</h5>
+        <p class="text-muted mb-0">Fill in the patient details below</p>
+    </div>
+    <a href="{% url 'patients:patient_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-4">
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="row g-3">
+                <!-- Basic Info -->
+                <div class="col-12">
+                    <h6 class="text-primary fw-semibold border-bottom pb-2 mb-3">Basic Information</h6>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                    {{ form.full_name }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Date of Birth</label>
+                    {{ form.date_of_birth }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Gender <span class="text-danger">*</span></label>
+                    {{ form.gender }}
+                </div>
+
+                <!-- Contact -->
+                <div class="col-12 mt-4">
+                    <h6 class="text-primary fw-semibold border-bottom pb-2 mb-3">Contact Details</h6>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Phone Number</label>
+                    {{ form.phone }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Insurance / NHIF Number</label>
+                    {{ form.insurance_number }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Blood Group</label>
+                    {{ form.blood_group }}
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Next of Kin</label>
+                    {{ form.next_of_kin }}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Next of Kin Phone</label>
+                    {{ form.next_of_kin_phone }}
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Address</label>
+                    {{ form.address }}
+                </div>
+
+                <!-- Clinical -->
+                <div class="col-12 mt-4">
+                    <h6 class="text-primary fw-semibold border-bottom pb-2 mb-3">Clinical Information</h6>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Allergies</label>
+                    {{ form.allergies }}
+                    <div class="form-text">Very important – will be highlighted on clinical screens</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Chronic Conditions</label>
+                    {{ form.chronic_conditions }}
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Additional Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-check-lg me-1"></i> Register Patient
+                </button>
+                <a href="{% url 'patients:patient_list' %}" class="btn btn-light ms-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Lab report{% endblock %}
+{% block page_title %}Laboratory monthly report{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Laboratory report</h5>
+        <p class="text-muted mb-0">{{ summary.month_name }} · Tests · Malaria · Sex × age</p>
+    </div>
+    <a href="{% url 'dashboard:lab_home' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-0">Month</label>
+                <select name="month" class="form-select form-select-sm">
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if m == summary.month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Year</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if y == summary.year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            </div>
+            <div class="col-auto">
+                <button type="submit" name="format" value="csv" class="btn btn-success btn-sm">Excel</button>
+            </div>
+            <div class="col-auto">
+                <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">Print / PDF</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Tests</div>
+            <div class="fs-3 fw-bold">{{ summary.total_tests }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Patients</div>
+            <div class="fs-3 fw-bold">{{ summary.unique_patients }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Malaria tests</div>
+            <div class="fs-3 fw-bold text-warning">{{ summary.malaria_tests }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Malaria + / abnormal</div>
+            <div class="fs-3 fw-bold text-danger">{{ summary.malaria_positive }}</div>
+        </div></div>
+    </div>
+</div>
+
+{% include "dashboard/_sex_age_table.html" with title="Tests performed by sex and age" rows=tests_rows band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="Patients tested by sex and age" rows=patients_rows band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="Malaria tests by sex and age" rows=malaria_matrix_rows band_labels=band_labels %}
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Tests by type</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>#</th><th>Test</th><th>Count</th></tr></thead>
+            <tbody>
+                {% for name, n in top_tests %}
+                <tr><td>{{ forloop.counter }}</td><td>{{ name }}</td><td>{{ n }}</td></tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-center text-muted py-3">No tests this month</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Malaria details</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr><th>Date</th><th>Patient</th><th>Sex</th><th>Age</th><th>Test</th><th>Result</th><th>Flag</th></tr>
+            </thead>
+            <tbody>
+                {% for r in malaria_rows %}
+                <tr class="{% if r.abnormal %}table-danger{% endif %}">
+                    <td class="small">{{ r.date|date:"d M" }}</td>
+                    <td>{{ r.patient }}</td>
+                    <td>{{ r.sex }}</td>
+                    <td>{{ r.age|default:"—" }}</td>
+                    <td class="small">{{ r.test }}</td>
+                    <td>{{ r.value|default:"—" }}</td>
+                    <td>{% if r.abnormal %}<span class="badge bg-danger">Abnormal</span>{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-3">No malaria tests</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Enter Results{% endblock %}
+{% block page_title %}Enter Lab Results{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="text-primary">{{ patient.patient_id }}</span>
+            {% if order.sample_number %}
+                · Sample <strong>{{ order.sample_number }}</strong>
+            {% endif %}
+            · Order #{{ order.pk }}
+        </p>
+    </div>
+    <a href="{% url 'laboratory:lab_queue' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back
+    </a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header">Results</div>
+        <div class="card-body">
+            {% for item in items %}
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between mb-2">
+                    <div>
+                        <strong>{{ item.test.code }}</strong> – {{ item.test.name }}
+                        {% if item.test.sample_type %}
+                            <small class="text-muted">({{ item.test.sample_type }})</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">Value</label>
+                        <input type="text" name="item_{{ item.pk }}_value" class="form-control"
+                               value="{% if item.existing_result %}{{ item.existing_result.value }}{% endif %}"
+                               placeholder="Result">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Unit</label>
+                        <input type="text" name="item_{{ item.pk }}_unit" class="form-control"
+                               value="{% if item.existing_result %}{{ item.existing_result.unit }}{% endif %}"
+                               placeholder="e.g. g/dL">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Reference range</label>
+                        <input type="text" name="item_{{ item.pk }}_reference_range" class="form-control"
+                               value="{% if item.existing_result %}{{ item.existing_result.reference_range }}{% endif %}"
+                               placeholder="e.g. 3.5-5.5">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox"
+                                   name="item_{{ item.pk }}_is_abnormal" id="abn_{{ item.pk }}"
+                                   {% if item.existing_result and item.existing_result.is_abnormal %}checked{% endif %}>
+                            <label class="form-check-label" for="abn_{{ item.pk }}">Abnormal</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small">Notes</label>
+                        <input type="text" name="item_{{ item.pk }}_notes" class="form-control"
+                               value="{% if item.existing_result %}{{ item.existing_result.notes }}{% endif %}"
+                               placeholder="Optional notes">
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-muted mb-0">No tests on this order.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-chat-left-text me-2"></i> Lab interpretation
+        </div>
+        <div class="card-body">
+            <textarea name="interpretation" class="form-control" rows="3"
+                      placeholder="Overall interpretation / advice for the patient or clinician (optional)..."></textarea>
+            <p class="small text-muted mt-2 mb-0">
+                Saved on the order and visit notes when you release, complete, or send to pharmacy.
+            </p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <p class="small text-muted mb-3">
+                <strong>Release to Doctor</strong> – doctor-ordered tests, patient returns to clinic queue.<br>
+                <strong>Complete &amp; print</strong> – lab-only / patient takes printed report (visit closed).<br>
+                <strong>Send to Pharmacy</strong> – results saved, patient pays at Reception then pharmacy (NHIF skips pay).
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" name="action" value="save_draft" class="btn btn-outline-secondary">
+                    <i class="bi bi-save me-1"></i> Save draft
+                </button>
+                <button type="submit" name="action" value="release_doctor" class="btn btn-outline-primary"
+                        onclick="return confirm('Release results to Doctor?')">
+                    <i class="bi bi-send me-1"></i> Release to Doctor
+                </button>
+                <button type="submit" name="action" value="complete_print" class="btn btn-success"
+                        onclick="return confirm('Finalize results and open print page for the patient?')">
+                    <i class="bi bi-printer me-1"></i> Complete &amp; print
+                </button>
+                <button type="submit" name="action" value="send_pharmacy" class="btn btn-warning"
+                        onclick="return confirm('Send patient to Pharmacy (payment first unless NHIF)?')">
+                    <i class="bi bi-capsule me-1"></i> Send to Pharmacy
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

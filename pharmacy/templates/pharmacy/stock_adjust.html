@@ -1,0 +1,38 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Stock Adjust{% endblock %}
+{% block page_title %}Adjust Stock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold">{{ drug.name }} {{ drug.strength }}</h5>
+        <p class="text-muted mb-0">Current stock: <strong>{{ drug.stock_quantity }}</strong></p>
+    </div>
+    <a href="{% url 'pharmacy:inventory' %}" class="btn btn-outline-secondary">Back</a>
+</div>
+
+<div class="card" style="max-width:480px;">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Type</label>
+                <select name="adjustment_type" class="form-select">
+                    <option value="IN">Stock In (add)</option>
+                    <option value="OUT">Stock Out (remove)</option>
+                    <option value="ADJUST">Set exact quantity</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Quantity</label>
+                <input type="number" name="quantity" class="form-control" min="1" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Reason (optional)</label>
+                <input type="text" name="reason" class="form-control" placeholder="e.g. New delivery">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

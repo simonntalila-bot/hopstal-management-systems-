@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prescription – {{ patient.full_name }}</title>
+    <style>
+        body { font-family: Georgia, serif; max-width: 700px; margin: 2rem auto; color: #111; }
+        h1 { font-size: 1.25rem; margin: 0; }
+        .muted { color: #555; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1.25rem; }
+        th, td { border-bottom: 1px solid #ccc; padding: 0.5rem 0.25rem; text-align: left; font-size: 0.95rem; }
+        .footer { margin-top: 2.5rem; font-size: 0.9rem; }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <button class="no-print" onclick="window.print()">Print / Save as PDF</button>
+
+    <h1>{{ clinic_name }}</h1>
+    <p class="muted">Outpatient prescription</p>
+
+    <p>
+        <strong>Patient:</strong> {{ patient.full_name }}<br>
+        <strong>ID:</strong> {{ patient.patient_id }}<br>
+        <strong>Date:</strong> {% now "d M Y H:i" %}
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Medicine</th>
+                <th>Qty</th>
+                <th>Instructions</th>
+                <th>Days</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rx in prescriptions %}
+            <tr>
+                <td>{{ rx.drug.name }} {% if rx.drug.strength %}{{ rx.drug.strength }}{% endif %}</td>
+                <td>{{ rx.quantity }}</td>
+                <td>{{ rx.dosage_instructions|default:"—" }}</td>
+                <td>{{ rx.duration_days|default:"—" }}</td>
+            </tr>
+            {% if rx.external_notes %}
+            <tr>
+                <td colspan="4" class="muted">Note: {{ rx.external_notes }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p>This prescription may be filled at any licensed pharmacy.</p>
+        <p><strong>Prescriber:</strong> {{ doctor.get_full_name|default:doctor.username }}</p>
+        <p>Signature: ________________________</p>
+    </div>
+</body>
+</html>

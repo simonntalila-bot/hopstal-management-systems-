@@ -1,0 +1,115 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Record Vitals{% endblock %}
+{% block page_title %}Record Vitals{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Record Vitals</h5>
+        <p class="text-muted mb-0">
+            {{ patient.full_name }} · 
+            <span class="text-primary">{{ patient.patient_id }}</span>
+        </p>
+    </div>
+    <a href="{% url 'encounters:vitals_queue' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to Queue
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Patient Quick Info -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-person me-2"></i> Patient Summary
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block">Full Name</small>
+                    <strong>{{ patient.full_name }}</strong>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Gender / Age</small>
+                    <strong>
+                        {{ patient.get_gender_display }}
+                        {% if patient.age %} · {{ patient.age }} years{% endif %}
+                    </strong>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Blood Group</small>
+                    <strong>{{ patient.blood_group|default:"—" }}</strong>
+                </div>
+
+                {% if patient.allergies %}
+                <div class="alert alert-danger py-2 mb-0">
+                    <small class="d-block fw-semibold">Allergies</small>
+                    {{ patient.allergies }}
+                </div>
+                {% else %}
+                <div class="mb-0">
+                    <small class="text-muted d-block">Allergies</small>
+                    <strong class="text-success">None recorded</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vitals Form -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-heart-pulse me-2"></i> Enter Vitals
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Temperature (°C)</label>
+                            {{ form.temperature_c }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Blood Pressure</label>
+                            {{ form.blood_pressure }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Pulse (bpm)</label>
+                            {{ form.pulse }}
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Respiratory Rate</label>
+                            {{ form.respiratory_rate }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">SpO₂ (%)</label>
+                            {{ form.spo2 }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Weight (kg)</label>
+                            {{ form.weight_kg }}
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Height (cm)</label>
+                            {{ form.height_cm }}
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check-lg me-1"></i> Save Vitals & Forward to Doctor
+                        </button>
+                        <a href="{% url 'encounters:vitals_queue' %}" class="btn btn-light ms-2">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

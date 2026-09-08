@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+{% block title %}RCH Service{% endblock %}
+{% block page_title %}Select RCH service{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }}</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Service type</div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for value, label in service_choices %}
+                <div class="col-md-6">
+                    <label class="border rounded-3 p-3 w-100 h-100" style="cursor:pointer;">
+                        <input type="radio" name="service_type" value="{{ value }}" class="form-check-input me-2" required>
+                        <strong>{{ label }}</strong>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Continue</button>
+</form>
+{% endblock %}

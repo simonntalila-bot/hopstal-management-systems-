@@ -1,0 +1,673 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Consultation – {{ patient.full_name }}{% endblock %}
+{% block page_title %}Consultation{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">
+            {{ patient.full_name }}
+            {% if encounter.status == "RESULTS_READY" %}
+                {% if ultrasound_reports and lab_orders %}
+                    <span class="badge bg-success ms-2">Results ready (Lab + Ultrasound)</span>
+                {% elif ultrasound_reports %}
+                    <span class="badge bg-info ms-2">Ultrasound results ready</span>
+                {% else %}
+                    <span class="badge bg-success ms-2">Lab results ready</span>
+                {% endif %}
+            {% endif %}
+        </h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary me-2">{{ patient.patient_id }}</span>
+            Consultation in progress
+            {% if patient.is_nhif %}
+                <span class="badge bg-warning-subtle text-warning ms-1">NHIF</span>
+            {% endif %}
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'patients:patient_detail' patient.pk %}"
+           class="btn btn-outline-primary"
+           target="_blank"
+           title="Open full medical history in a new tab">
+            <i class="bi bi-journal-medical me-1"></i> Full medical history
+        </a>
+        <a href="{% url 'encounters:doctor_queue' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Queue
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- LEFT -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person me-2"></i> Patient Summary</span>
+                <a href="{% url 'patients:patient_detail' patient.pk %}"
+                   class="btn btn-sm btn-link p-0"
+                   target="_blank">
+                    History
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block">Gender / Age</small>
+                    <strong>
+                        {{ patient.get_gender_display }}
+                        {% if patient.age %} · {{ patient.age }} years{% endif %}
+                    </strong>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Blood Group</small>
+                    <strong>{{ patient.blood_group|default:"—" }}</strong>
+                </div>
+
+                {% if patient.allergies %}
+                <div class="alert alert-danger py-2 mb-3">
+                    <small class="d-block fw-semibold">⚠ Allergies</small>
+                    {{ patient.allergies }}
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <small class="text-muted d-block">Allergies</small>
+                    <strong class="text-success">None recorded</strong>
+                </div>
+                {% endif %}
+
+                {% if patient.chronic_conditions %}
+                <div class="mb-3">
+                    <small class="text-muted d-block">Chronic Conditions</small>
+                    <strong>{{ patient.chronic_conditions }}</strong>
+                </div>
+                {% endif %}
+
+                <a href="{% url 'patients:patient_detail' patient.pk %}"
+                   class="btn btn-sm btn-outline-primary w-100"
+                   target="_blank">
+                    <i class="bi bi-journal-medical me-1"></i> View full medical history
+                </a>
+                <p class="small text-muted mt-2 mb-0">
+                    Past visits, consultations, lab results, ultrasound, medicines.
+                </p>
+            </div>
+        </div>
+
+        <!-- Vitals: view latest + record new -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-heart-pulse me-2"></i> Vitals</div>
+            <div class="card-body">
+                {% if latest_vitals %}
+                <div class="small text-muted mb-2">
+                    Last recorded {{ latest_vitals.recorded_at|date:"d M Y H:i" }}
+                    {% if latest_vitals.recorded_by %} · {{ latest_vitals.recorded_by }}{% endif %}
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Temperature</small>
+                        <strong>{{ latest_vitals.temperature_c|default:"—" }} °C</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Blood Pressure</small>
+                        <strong>{{ latest_vitals.blood_pressure|default:"—" }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Pulse</small>
+                        <strong>{{ latest_vitals.pulse|default:"—" }} bpm</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">SpO₂</small>
+                        <strong>{{ latest_vitals.spo2|default:"—" }} %</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Weight</small>
+                        <strong>{{ latest_vitals.weight_kg|default:"—" }} kg</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Height</small>
+                        <strong>{{ latest_vitals.height_cm|default:"—" }} cm</strong>
+                    </div>
+                    {% if latest_vitals.respiratory_rate %}
+                    <div class="col-6">
+                        <small class="text-muted d-block">RR</small>
+                        <strong>{{ latest_vitals.respiratory_rate }} /min</strong>
+                    </div>
+                    {% endif %}
+                    {% if latest_vitals.notes %}
+                    <div class="col-12">
+                        <small class="text-muted d-block">Notes</small>
+                        <span class="small">{{ latest_vitals.notes }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-3">No vitals for this visit yet.</p>
+                {% endif %}
+
+                <form method="post" class="border-top pt-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_vitals">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Temp (°C)</label>
+                            <input type="number" step="0.1" name="temperature_c" class="form-control form-control-sm"
+                                   placeholder="36.8">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">BP</label>
+                            <input type="text" name="blood_pressure" class="form-control form-control-sm"
+                                   placeholder="120/80">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Pulse</label>
+                            <input type="number" name="pulse" class="form-control form-control-sm" placeholder="72">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">SpO₂ %</label>
+                            <input type="number" name="spo2" class="form-control form-control-sm" placeholder="98">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Weight (kg)</label>
+                            <input type="number" step="0.1" name="weight_kg" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Height (cm)</label>
+                            <input type="number" step="0.1" name="height_cm" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">RR /min</label>
+                            <input type="number" name="respiratory_rate" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small">Notes</label>
+                            <input type="text" name="vitals_notes" class="form-control form-control-sm" placeholder="Optional">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                                <i class="bi bi-plus-lg me-1"></i> Record vitals
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-signpost-split me-2"></i> Quick Refer</div>
+            <div class="card-body d-grid gap-2">
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="LAB">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-primary w-100"
+                            onclick="return confirm('Send to Laboratory? Payment required first (unless NHIF).')">
+                        <i class="bi bi-eyedropper me-1"></i> Laboratory
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="ULTRASOUND">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-primary w-100"
+                            onclick="return confirm('Send to Ultrasound? Payment required first (unless NHIF).')">
+                        <i class="bi bi-soundwave me-1"></i> Ultrasound
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="INJECTION">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-primary w-100"
+                            onclick="return confirm('Send to Injection Room? Payment required first (unless NHIF).')">
+                        <i class="bi bi-syringe me-1"></i> Injection Room
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="MINOR_SURGERY">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-danger w-100"
+                            onclick="return confirm('Send to Minor Surgery? Payment required first (unless NHIF).')">
+                        <i class="bi bi-scissors me-1"></i> Minor Surgery
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="PHARMACY">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-success w-100"
+                            onclick="return confirm('Send to Pharmacy? Payment required first (unless NHIF).')">
+                        <i class="bi bi-capsule me-1"></i> Pharmacy
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="RCH">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-primary w-100"
+                            onclick="return confirm('Send to RCH? Payment required first (unless NHIF).')">
+                        <i class="bi bi-people me-1"></i> RCH
+                    </button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refer">
+                    <input type="hidden" name="target_department" value="LABOUR_WARD">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+                    <button type="submit" class="btn btn-outline-danger w-100"
+                            onclick="return confirm('Send to Labour Ward? Payment required first (unless NHIF).')">
+                        <i class="bi bi-hospital me-1"></i> Labour Ward
+                    </button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col-lg-8">
+
+        {% if ultrasound_reports %}
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info-subtle text-info-emphasis">
+                <i class="bi bi-soundwave me-2"></i> Ultrasound results
+                <span class="badge bg-info ms-1">{{ ultrasound_reports|length }}</span>
+            </div>
+            <div class="card-body">
+                {% for us in ultrasound_reports %}
+                <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+                    {% if us.findings %}
+                    <p class="mb-2" style="white-space: pre-wrap;">{{ us.findings }}</p>
+                    {% else %}
+                    <p class="text-muted mb-2">No written findings.</p>
+                    {% endif %}
+                    <p class="small text-muted mb-2">
+                        {{ us.created_at|date:"d M Y H:i" }}
+                        {% if us.performed_by %} · {{ us.performed_by }}{% endif %}
+                    </p>
+                    {% if us.image %}
+                    <a href="{{ us.image.url }}" target="_blank" rel="noopener">
+                        <img src="{{ us.image.url }}" alt="Ultrasound"
+                             class="rounded border img-fluid" style="max-height: 220px;">
+                    </a>
+                    <div class="mt-1">
+                        <a href="{{ us.image.url }}" target="_blank" class="small">Open full image</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if lab_orders %}
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success-subtle text-success-emphasis">
+                <i class="bi bi-clipboard-data me-2"></i> Laboratory Results
+            </div>
+            <div class="card-body">
+                {% for order in lab_orders %}
+                <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">
+                            Sample <strong>{{ order.sample_number|default:"—" }}</strong>
+                            {% if order.released_at %}
+                                · Released {{ order.released_at|date:"d M Y, H:i" }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% if order.clinical_notes %}
+                    <p class="small text-muted mb-2"><em>{{ order.clinical_notes }}</em></p>
+                    {% endif %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Test</th>
+                                    <th>Result</th>
+                                    <th>Unit</th>
+                                    <th>Reference</th>
+                                    <th>Flag</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items.all %}
+                                <tr class="{% if item.result and item.result.is_abnormal %}table-danger{% endif %}">
+                                    <td>
+                                        <strong>{{ item.test.code }}</strong><br>
+                                        <small class="text-muted">{{ item.test.name }}</small>
+                                    </td>
+                                    <td>
+                                        {% if item.result %}
+                                            <strong>{{ item.result.value|default:"—" }}</strong>
+                                        {% else %}—
+                                        {% endif %}
+                                    </td>
+                                    <td>{% if item.result %}{{ item.result.unit|default:"" }}{% endif %}</td>
+                                    <td>{% if item.result %}{{ item.result.reference_range|default:"" }}{% endif %}</td>
+                                    <td>
+                                        {% if item.result and item.result.is_abnormal %}
+                                            <span class="badge bg-danger">Abnormal</span>
+                                        {% elif item.result %}
+                                            <span class="badge bg-success">Normal</span>
+                                        {% else %}—
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if item.result and item.result.notes %}
+                                <tr>
+                                    <td colspan="5" class="small text-muted pt-0 border-0">
+                                        Note: {{ item.result.notes }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-clipboard2-pulse me-2"></i> Consultation Notes</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_consultation">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Chief Complain</label>
+                            {{ consultation_form.symptoms }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Physical Examination</label>
+                            {{ consultation_form.findings }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Provisional Diagnosis</label>
+                            {{ consultation_form.diagnosis }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Final Diagnosis</label>
+                            {{ consultation_form.secondary_diagnosis }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Treatment Plan</label>
+                            {{ consultation_form.treatment_plan }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Follow-up Date</label>
+                            {{ consultation_form.follow_up_date }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Additional Notes</label>
+                            {{ consultation_form.notes }}
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-save me-1"></i> Save Notes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-eyedropper me-2"></i> Request Laboratory Tests</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="request_lab">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+
+                    <div class="mb-3">
+                        <label class="form-label">Clinical indication</label>
+                        <textarea name="lab_clinical_notes" class="form-control" rows="2"
+                                  placeholder="Why are these tests needed?"></textarea>
+                    </div>
+
+                    <label class="form-label fw-semibold">From catalog</label>
+                    <div class="mb-3" style="max-height: 260px; overflow-y: auto; border: 1px solid #e8eef5; border-radius: 8px; padding: 0.75rem;">
+                        {% regroup lab_tests by get_category_display as tests_by_category %}
+                        {% for group in tests_by_category %}
+                            <div class="fw-semibold text-primary small mb-1 mt-2">{{ group.grouper }}</div>
+                            {% for test in group.list %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="lab_tests" value="{{ test.pk }}" id="test_{{ test.pk }}">
+                                <label class="form-check-label" for="test_{{ test.pk }}">
+                                    <strong>{{ test.code }}</strong> – {{ test.name }}
+                                    {% if test.sample_type %}
+                                        <small class="text-muted">({{ test.sample_type }})</small>
+                                    {% endif %}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        {% empty %}
+                            <p class="text-muted small mb-0">
+                                No catalog tests. You can still add custom tests below.
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Custom tests <span class="text-muted fw-normal">(optional)</span>
+                        </label>
+                        <textarea name="custom_lab_tests" class="form-control" rows="3"
+                                  placeholder="One test per line, e.g.&#10;Widal test&#10;Blood culture&#10;Stool microscopy"></textarea>
+                        <div class="form-text">
+                            Use when the test is not in the list. One name per line, or separate with commas.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary"
+                            onclick="return confirm('Submit lab request? Patient may need to pay at Reception first.')">
+                        <i class="bi bi-send me-1"></i> Submit Lab Request
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-capsule me-2"></i> Prescriptions</span>
+                {% if has_external_rx %}
+                <a href="{% url 'consultations:external_rx_print' encounter.pk %}"
+                   class="btn btn-sm btn-outline-secondary" target="_blank">
+                    <i class="bi bi-printer me-1"></i> Print external Rx
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if prescriptions %}
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Drug</th>
+                                <th>Qty</th>
+                                <th>Instructions</th>
+                                <th>Days</th>
+                                <th>Where</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rx in prescriptions %}
+                            <tr>
+                                <td><strong>{{ rx.drug.name }}</strong></td>
+                                <td>{{ rx.quantity }}</td>
+                                <td>{{ rx.dosage_instructions|default:"—" }}</td>
+                                <td>{{ rx.duration_days|default:"—" }}</td>
+                                <td>
+                                    {% if rx.source == "EXTERNAL" %}
+                                        <span class="badge text-bg-secondary">External PDF</span>
+                                    {% else %}
+                                        <span class="badge text-bg-success">In-house</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-3">No medicines added yet.</p>
+                {% endif %}
+
+                <form method="post" class="border-top pt-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_prescription">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label">Drug (stock shown in list)</label>
+                            {{ prescription_form.drug }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Qty</label>
+                            {{ prescription_form.quantity }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Instructions</label>
+                            {{ prescription_form.dosage_instructions }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Days</label>
+                            {{ prescription_form.duration_days }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Where to get medicine</label>
+                            {% if prescription_form.source %}
+                                {{ prescription_form.source }}
+                            {% else %}
+                            <select name="source" class="form-select" required>
+                                <option value="IN_HOUSE" selected>Dispense at this pharmacy</option>
+                                <option value="EXTERNAL">External prescription (PDF)</option>
+                            </select>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">External note (optional)</label>
+                            {% if prescription_form.external_notes %}
+                                {{ prescription_form.external_notes }}
+                            {% else %}
+                            <input type="text" name="external_notes" class="form-control"
+                                   placeholder="Printed on external Rx only">
+                            {% endif %}
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-plus-lg"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">
+                        <strong>In-house:</strong> stock must be available → patient pays → Pharmacy queue.<br>
+                        <strong>External:</strong> print PDF for the patient to buy elsewhere (not sent to clinic pharmacy).
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="finish_consultation">
+                    {{ consultation_form.symptoms.as_hidden }}
+                    {{ consultation_form.findings.as_hidden }}
+                    {{ consultation_form.diagnosis.as_hidden }}
+                    {{ consultation_form.secondary_diagnosis.as_hidden }}
+                    {{ consultation_form.treatment_plan.as_hidden }}
+                    {{ consultation_form.follow_up_date.as_hidden }}
+                    {{ consultation_form.notes.as_hidden }}
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>Finish Consultation</strong>
+                            <p class="text-muted mb-0 small">
+                                In-house medicines → <strong>Payment pending (Pharmacy)</strong>.
+                                External-only or no Rx → visit completed.
+                            </p>
+                        </div>
+                        <button type="submit" class="btn btn-primary px-4"
+                                onclick="return confirm('Finish this consultation?')">
+                            <i class="bi bi-check-lg me-1"></i> Complete Consultation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

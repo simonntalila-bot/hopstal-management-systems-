@@ -1,0 +1,82 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ label }} – {{ patient.full_name }}{% endblock %}
+{% block page_title %}{{ label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary">{{ patient.patient_id }}</span>
+            · {{ label }}
+        </p>
+    </div>
+    <a href="{% url queue_url_name %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+{% if past %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Recorded this visit</div>
+    <div class="card-body">
+        {% for s in past %}
+        <div class="mb-2 {% if not forloop.last %}border-bottom pb-2{% endif %}">
+            <strong>{{ s.get_service_type_display }}</strong>
+            {% if s.procedure_name %} – {{ s.procedure_name }}{% endif %}
+            <div class="small text-muted">{{ s.performed_at|date:"d M Y H:i" }}</div>
+            {% if s.notes %}<p class="small mb-0" style="white-space:pre-wrap;">{{ s.notes }}</p>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">{% if is_surgery %}Procedure details{% else %}Injection / dressing{% endif %}</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Type</label>
+                    <select name="service_type" class="form-select">
+                        {% for val, lab in service_types %}
+                        <option value="{{ val }}">{{ lab }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if is_surgery %}
+                <div class="col-md-6">
+                    <label class="form-label">Procedure name</label>
+                    <input type="text" name="procedure_name" class="form-control"
+                           placeholder="e.g. I&D abscess, excision, suture">
+                </div>
+                {% else %}
+                <div class="col-md-6">
+                    <label class="form-label">Drug / detail (optional)</label>
+                    <input type="text" name="procedure_name" class="form-control"
+                           placeholder="e.g. Diclofenac IM, TT">
+                </div>
+                {% endif %}
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="4"></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Materials used</label>
+                    <input type="text" name="materials_used" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Complications</label>
+                    <input type="text" name="complications" class="form-control" placeholder="None">
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" name="action" value="save" class="btn btn-outline-primary">Save only</button>
+        <button type="submit" name="action" value="return_doctor" class="btn btn-outline-secondary">Save &amp; return to Doctor</button>
+        <button type="submit" name="action" value="complete" class="btn btn-success"
+                onclick="return confirm('Complete this visit?')">Save &amp; complete visit</button>
+    </div>
+</form>
+{% endblock %}

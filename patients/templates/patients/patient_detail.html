@@ -1,0 +1,448 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ patient.full_name }}{% endblock %}
+{% block page_title %}Patient Details{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">
+            {{ patient.full_name }}
+            {% if patient.is_nhif %}
+                <span class="badge text-bg-info ms-1">NHIF</span>
+            {% endif %}
+        </h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary me-2">{{ patient.patient_id }}</span>
+            Registered {{ patient.created_at|date:"d M Y" }}
+            · Full medical history
+        </p>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+        {% if can_manage %}
+        <div class="dropdown">
+            <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-play-circle me-1"></i> Start Visit
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=DOCTOR">
+                        <i class="bi bi-clipboard2-pulse me-2 text-primary"></i> Doctor
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=LAB">
+                        <i class="bi bi-eyedropper me-2 text-primary"></i> Laboratory
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=ULTRASOUND">
+                        <i class="bi bi-soundwave me-2 text-primary"></i> Ultrasound
+                    </a>
+                </li>
+                <li>
+    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=INJECTION">
+        <i class="bi bi-syringe me-2 text-primary"></i> Injection room
+    </a>
+</li>
+<li>
+    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=MINOR_SURGERY">
+        <i class="bi bi-scissors me-2 text-danger"></i> Minor surgery
+    </a>
+</li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=RCH">
+                        <i class="bi bi-heart me-2 text-primary"></i> RCH
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=LABOUR_WARD">
+                        <i class="bi bi-hospital me-2 text-primary"></i> Labour Ward
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'patients:start_visit' patient.pk %}?department=PHARMACY">
+                        <i class="bi bi-capsule me-2 text-primary"></i> Pharmacy Only
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if role == "RECEPTION" or role == "ADMIN" %}
+        <a href="{% url 'patients:patient_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+        {% else %}
+        <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- Left column -->
+    <div class="col-lg-8">
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header">
+                <i class="bi bi-person-vcard me-2"></i> Patient Information
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Gender</small>
+                        <strong>{{ patient.get_gender_display }}</strong>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Date of Birth</small>
+                        <strong>
+                            {{ patient.date_of_birth|date:"d M Y"|default:"—" }}
+                            {% if patient.age %}
+                                <span class="text-muted fw-normal">({{ patient.age }} yrs)</span>
+                            {% endif %}
+                        </strong>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Blood Group</small>
+                        <strong>{{ patient.blood_group|default:"—" }}</strong>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Phone</small>
+                        <strong>{{ patient.phone|default:"—" }}</strong>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">NHIF</small>
+                        {% if patient.is_nhif %}
+                            <strong class="text-info">Yes</strong>
+                            {% if patient.nhif_card_number %}
+                                <br><small class="text-muted">{{ patient.nhif_card_number }}</small>
+                            {% endif %}
+                        {% else %}
+                            <strong>No</strong>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Other insurance No.</small>
+                        <strong>{{ patient.insurance_number|default:"—" }}</strong>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Next of Kin</small>
+                        <strong>
+                            {{ patient.next_of_kin|default:"—" }}
+                            {% if patient.next_of_kin_phone %}
+                                <br><small class="text-muted">{{ patient.next_of_kin_phone }}</small>
+                            {% endif %}
+                        </strong>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Address</small>
+                        <strong>{{ patient.address|default:"—" }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header">
+                <i class="bi bi-heart-pulse me-2"></i> Clinical Information
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Allergies</small>
+                        {% if patient.allergies %}
+                            <div class="alert alert-danger py-2 mb-0">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {{ patient.allergies }}
+                            </div>
+                        {% else %}
+                            <strong class="text-success">None recorded</strong>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Chronic Conditions</small>
+                        <strong>{{ patient.chronic_conditions|default:"None recorded" }}</strong>
+                    </div>
+                    {% if patient.notes %}
+                    <div class="col-12">
+                        <small class="text-muted d-block">Notes</small>
+                        <strong>{{ patient.notes }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header">
+                <i class="bi bi-folder2-open me-2"></i> Past medical records
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Title</th>
+                                <th>Date</th>
+                                <th>File</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td class="fw-semibold">{{ doc.title }}</td>
+                                <td class="small text-muted">{{ doc.created_at|date:"d M Y" }}</td>
+                                <td>
+                                    <a href="{{ doc.document.url }}" target="_blank"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-download"></i> Open
+                                    </a>
+                                </td>
+                                <td class="small">{{ doc.notes|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-3">No documents attached yet.</p>
+                {% endif %}
+
+                {% if can_manage %}
+                <form method="post" enctype="multipart/form-data" class="border-top pt-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="upload_document">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small">Title</label>
+                            <input type="text" name="title" class="form-control" required
+                                   placeholder="e.g. Old discharge summary">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">File</label>
+                            <input type="file" name="document" class="form-control" required
+                                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Notes</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-md-1">
+                            <button type="submit" class="btn btn-primary w-100" title="Upload">
+                                <i class="bi bi-upload"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Visits & clinical history -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-journal-medical me-2"></i> Visits &amp; clinical history</span>
+                <span class="badge bg-secondary">{{ history|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% for h in history %}
+                <div class="border-bottom p-3">
+                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+                        <div>
+                            <strong>Visit #{{ h.encounter.pk }}</strong>
+                            <span class="badge bg-secondary-subtle text-secondary ms-1">
+                                {{ h.encounter.get_status_display }}
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary">
+                                {{ h.encounter.get_current_department_display }}
+                            </span>
+                        </div>
+                        <small class="text-muted">{{ h.encounter.created_at|date:"d M Y, H:i" }}</small>
+                    </div>
+
+                    {% if h.consultation %}
+                    <div class="small mb-2 p-2 rounded bg-light">
+                        <strong class="d-block mb-1">
+                            <i class="bi bi-clipboard2-pulse me-1"></i> Consultation
+                        </strong>
+                        {% if h.consultation.diagnosis %}
+                        <div><span class="text-muted">Dx:</span> {{ h.consultation.diagnosis }}</div>
+                        {% endif %}
+                        {% if h.consultation.secondary_diagnosis %}
+                        <div><span class="text-muted">Secondary:</span> {{ h.consultation.secondary_diagnosis }}</div>
+                        {% endif %}
+                        {% if h.consultation.symptoms %}
+                        <div class="text-muted">Sx: {{ h.consultation.symptoms|truncatewords:40 }}</div>
+                        {% endif %}
+                        {% if h.consultation.findings %}
+                        <div class="text-muted">Findings: {{ h.consultation.findings|truncatewords:40 }}</div>
+                        {% endif %}
+                        {% if h.consultation.treatment_plan %}
+                        <div>Plan: {{ h.consultation.treatment_plan|truncatewords:30 }}</div>
+                        {% endif %}
+                        {% if h.consultation.notes %}
+                        <div class="text-muted">Notes: {{ h.consultation.notes|truncatewords:25 }}</div>
+                        {% endif %}
+                        {% if h.consultation.follow_up_date %}
+                        <div class="text-muted">Follow-up: {{ h.consultation.follow_up_date|date:"d M Y" }}</div>
+                        {% endif %}
+                        {% if h.consultation.doctor %}
+                        <div class="text-muted mt-1">Dr: {{ h.consultation.doctor }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if h.notes %}
+                    <div class="small mb-2 text-muted">
+                        <strong>Visit notes:</strong> {{ h.notes|truncatewords:40 }}
+                    </div>
+                    {% endif %}
+
+                    {% if h.prescriptions %}
+                    <div class="small mb-2">
+                        <strong><i class="bi bi-capsule me-1"></i> Medicines</strong>
+                        <ul class="mb-0 ps-3">
+                            {% for rx in h.prescriptions %}
+                            <li>
+                                {{ rx.drug.name }} ×{{ rx.quantity }}
+                                {% if rx.dosage_instructions %} – {{ rx.dosage_instructions }}{% endif %}
+                                {% if rx.duration_days %} ({{ rx.duration_days }}d){% endif %}
+                                {% if rx.source == "EXTERNAL" %}
+                                <span class="badge text-bg-secondary">External</span>
+                                {% else %}
+                                <span class="badge text-bg-success">In-house</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% for order in h.lab_orders %}
+                    <div class="small mb-2">
+                        <strong><i class="bi bi-eyedropper me-1"></i> Lab</strong>
+                        <span class="badge bg-light text-dark border">{{ order.get_status_display }}</span>
+                        <ul class="mb-0 ps-3">
+                            {% for item in order.items.all %}
+                            <li>
+                                {{ item.test.code }} – {{ item.test.name }}
+                                {% if item.result %}
+                                → <strong>{{ item.result.value }}</strong> {{ item.result.unit }}
+                                {% if item.result.is_abnormal %}
+                                <span class="text-danger">Abnormal</span>
+                                {% endif %}
+                                {% endif %}
+                            </li>
+                            {% empty %}
+                            <li class="text-muted">No tests on this order</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endfor %}
+
+                    {% for us in h.ultrasound %}
+                    <div class="small mb-2">
+                        <strong><i class="bi bi-soundwave me-1"></i> Ultrasound</strong>
+                        <span class="text-muted">{{ us.created_at|date:"d M Y H:i" }}</span>
+                        {% if us.findings %}
+                        <div style="white-space: pre-wrap;">{{ us.findings|truncatewords:50 }}</div>
+                        {% endif %}
+                        {% if us.image %}
+                        <a href="{{ us.image.url }}" target="_blank" class="small">View image</a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+
+                    {% for pay in h.payments %}
+                    <div class="small text-muted">
+                        <i class="bi bi-cash me-1"></i>
+                        Payment: TZS {{ pay.amount|floatformat:0 }} ({{ pay.method }})
+                        {% if pay.received_at %}
+                        · {{ pay.received_at|date:"d M Y H:i" }}
+                        {% elif pay.created_at %}
+                        · {{ pay.created_at|date:"d M Y H:i" }}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% empty %}
+                <p class="text-muted text-center py-4 mb-0">No visits yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4 text-center">
+            <div class="card-header">
+                <i class="bi bi-qr-code me-2"></i> Patient QR Code
+            </div>
+            <div class="card-body py-4">
+                {% if patient.qr_code %}
+                    <img src="{{ patient.qr_code.url }}"
+                         alt="QR Code"
+                         class="img-fluid mb-3"
+                         style="max-width: 200px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;">
+                    <h6 class="fw-bold text-primary mb-0">{{ patient.patient_id }}</h6>
+                    <small class="text-muted">Scan for quick check-in</small>
+                {% else %}
+                    <div class="text-muted py-3">
+                        <i class="bi bi-qr-code fs-1 d-block mb-2 opacity-50"></i>
+                        QR code not generated
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i> Quick Summary
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Patient ID</span>
+                    <strong class="text-primary">{{ patient.patient_id }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">NHIF</span>
+                    {% if patient.is_nhif %}
+                        <span class="badge text-bg-info">Yes</span>
+                    {% else %}
+                        <span class="badge text-bg-secondary">No</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Status</span>
+                    {% if patient.is_active %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Documents</span>
+                    <strong>{{ documents|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Visits shown</span>
+                    <strong>{{ history|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Registered</span>
+                    <strong>{{ patient.created_at|date:"d M Y" }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

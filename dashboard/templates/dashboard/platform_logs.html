@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Platform Logs{% endblock %}
+{% block page_title %}Platform Logs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Activity audit</h5>
+        <p class="text-muted mb-0">Visits · Payments · Lab · Dispensing</p>
+    </div>
+    <a href="{% url 'dashboard:admin_home' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Control Centre
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header">Visit status changes</div>
+            <div class="card-body p-0" style="max-height:420px;overflow-y:auto;">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr><th class="ps-3">Time</th><th>Patient</th><th>Change</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td class="ps-3 small text-muted">{{ log.created_at|date:"d M H:i" }}</td>
+                            <td class="small">{% if log.encounter.patient %}{{ log.encounter.patient.patient_id }}{% endif %}</td>
+                            <td class="small">
+                                {{ log.from_status }} → {{ log.to_status }}
+                                {% if log.performed_by %}<span class="text-muted">· {{ log.performed_by }}</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">No logs</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header">Payments</div>
+            <div class="card-body p-0" style="max-height:420px;overflow-y:auto;">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr><th class="ps-3">Time</th><th>Patient</th><th>Amount</th><th>Method</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in recent_payments %}
+                        <tr>
+                            <td class="ps-3 small text-muted">{{ p.received_at|default:p.created_at|date:"d M H:i" }}</td>
+                            <td class="small">{% if p.encounter.patient %}{{ p.encounter.patient.full_name }}{% endif %}</td>
+                            <td class="fw-semibold">{{ p.amount }}</td>
+                            <td class="small">{{ p.method }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No payments</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header">Lab releases</div>
+            <div class="card-body p-0" style="max-height:360px;overflow-y:auto;">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr><th class="ps-3">Released</th><th>Patient</th><th>Sample</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for o in recent_lab %}
+                        <tr>
+                            <td class="ps-3 small text-muted">{{ o.released_at|date:"d M H:i" }}</td>
+                            <td class="small">{{ o.encounter.patient.full_name }}</td>
+                            <td class="small">{{ o.sample_number|default:"—" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">No lab releases</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header">Dispenses</div>
+            <div class="card-body p-0" style="max-height:360px;overflow-y:auto;">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr><th class="ps-3">Time</th><th>Patient</th><th>Drug</th><th>Qty</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in recent_dispenses %}
+                        <tr>
+                            <td class="ps-3 small text-muted">{{ d.dispensed_at|date:"d M H:i" }}</td>
+                            <td class="small">{{ d.encounter.patient.full_name }}</td>
+                            <td class="small">{{ d.drug.name }}</td>
+                            <td>{{ d.quantity_dispensed }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No dispenses</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

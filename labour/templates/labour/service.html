@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Labour Ward{% endblock %}
+{% block page_title %}Labour Ward Service{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · Labour Ward</p>
+    </div>
+    <a href="{% url 'labour:queue' %}" class="btn btn-outline-secondary">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <label class="form-label">Labour / delivery notes</label>
+            <textarea name="notes" class="form-control" rows="5"
+                      placeholder="Observations, stage, outcome..."></textarea>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="submit" name="action" value="return_doctor" class="btn btn-outline-primary">
+            Done – Return to Doctor
+        </button>
+        <button type="submit" name="action" value="complete" class="btn btn-success"
+                onclick="return confirm('Complete this visit?')">
+            Complete Visit
+        </button>
+    </div>
+</form>
+{% endblock %}

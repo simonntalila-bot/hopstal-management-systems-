@@ -1,0 +1,111 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Minor surgery – {{ patient.full_name }}{% endblock %}
+{% block page_title %}Minor surgery{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-danger-subtle text-danger me-1">Minor surgery</span>
+            <span class="badge bg-primary-subtle text-primary">{{ patient.patient_id }}</span>
+            {{ patient.get_gender_display }}
+            {% if patient.age %} · {{ patient.age }} years{% endif %}
+        </p>
+    </div>
+    <a href="{% url 'injection:surgery_queue' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to surgery queue
+    </a>
+</div>
+
+{% if past %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Procedures recorded this visit</div>
+    <div class="card-body">
+        {% for s in past %}
+        <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>{{ s.get_service_type_display }}</strong>
+                    {% if s.procedure_name %}
+                        <span class="text-muted">· {{ s.procedure_name }}</span>
+                    {% endif %}
+                </div>
+                <small class="text-muted">{{ s.performed_at|date:"d M Y H:i" }}</small>
+            </div>
+            {% if s.notes %}
+            <p class="small mb-1 mt-1" style="white-space: pre-wrap;">{{ s.notes }}</p>
+            {% endif %}
+            {% if s.materials_used %}
+            <div class="small text-muted">Materials: {{ s.materials_used }}</div>
+            {% endif %}
+            {% if s.complications %}
+            <div class="small text-danger">Complications: {{ s.complications }}</div>
+            {% endif %}
+            {% if s.performed_by %}
+            <div class="small text-muted">By: {{ s.performed_by }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="card border-0 shadow-sm mb-3 border-start border-4 border-danger">
+        <div class="card-header bg-white">
+            <i class="bi bi-scissors me-2 text-danger"></i> New minor procedure
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Procedure type</label>
+                    <select name="service_type" class="form-select" required>
+                        {% for val, lab in service_types %}
+                        <option value="{{ val }}">{{ lab }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Procedure name <span class="text-danger">*</span></label>
+                    <input type="text" name="procedure_name" class="form-control"
+                           placeholder="e.g. I&D abscess, lipoma excision, wound suture"
+                           required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Clinical / operative notes</label>
+                    <textarea name="notes" class="form-control" rows="5"
+                              placeholder="Indication, local anaesthesia, findings, technique, post-op advice…"></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Materials used</label>
+                    <input type="text" name="materials_used" class="form-control"
+                           placeholder="e.g. lignocaine 2%, gauze, nylon 3-0">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Complications</label>
+                    <input type="text" name="complications" class="form-control"
+                           placeholder="None / bleeding / …">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" name="action" value="save" class="btn btn-outline-primary">
+            <i class="bi bi-save me-1"></i> Save only
+        </button>
+        <button type="submit" name="action" value="return_doctor" class="btn btn-outline-secondary">
+            Save &amp; return to Doctor
+        </button>
+        <button type="submit" name="action" value="complete" class="btn btn-success"
+                onclick="return confirm('Complete this visit after surgery?')">
+            <i class="bi bi-check-lg me-1"></i> Save &amp; complete visit
+        </button>
+    </div>
+</form>
+
+{% endblock %}

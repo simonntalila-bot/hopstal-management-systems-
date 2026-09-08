@@ -1,0 +1,87 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Lab Queue{% endblock %}
+{% block page_title %}Laboratory Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+  <div>
+    <h5 class="fw-semibold mb-1">Lab worklist</h5>
+    <p class="text-muted mb-0">Paid patients at Laboratory</p>
+  </div>
+  <span class="badge bg-primary px-3 py-2">{{ visits|length }}</span>
+</div>
+
+{% if orders %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header">Orders (tests requested)</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Patient</th>
+          <th>Status</th>
+          <th>Tests</th>
+          <th class="text-end pe-3">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td class="ps-3">
+            <strong>{{ o.encounter.patient.full_name }}</strong><br>
+            <small class="text-primary">{{ o.encounter.patient.patient_id }}</small>
+          </td>
+          <td><span class="badge bg-secondary">{{ o.status }}</span></td>
+          <td class="small">{{ o.items.count }} test(s)</td>
+          <td class="text-end pe-3">
+            {% if o.status == "REQUESTED" %}
+            <a href="{% url 'laboratory:collect_sample' o.pk %}" class="btn btn-sm btn-primary">Collect sample</a>
+            {% else %}
+            <a href="{% url 'laboratory:enter_results' o.pk %}" class="btn btn-sm btn-success">Results</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if orphan_visits %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header">Lab-only visits (no order yet)</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Patient</th>
+          <th>Waiting</th>
+          <th class="text-end pe-3">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in orphan_visits %}
+        <tr>
+          <td class="ps-3">
+            <strong>{{ v.patient.full_name }}</strong><br>
+            <small class="text-primary">{{ v.patient.patient_id }}</small>
+          </td>
+          <td>{{ v.created_at|timesince }} ago</td>
+          <td class="text-end pe-3">
+            <a href="{% url 'laboratory:lab_only_start' v.pk %}" class="btn btn-sm btn-outline-primary">
+              Select tests
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if not orders and not orphan_visits %}
+<div class="text-center text-muted py-5">No patients in lab queue.</div>
+{% endif %}
+{% endblock %}

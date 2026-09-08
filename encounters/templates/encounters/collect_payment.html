@@ -1,0 +1,112 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Collect Payment{% endblock %}
+{% block page_title %}Collect Payment{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Collect Payment</h5>
+        <p class="text-muted mb-0">
+            {{ patient.full_name }} ·
+            <span class="text-primary">{{ patient.patient_id }}</span>
+        </p>
+    </div>
+    <a href="{% url 'encounters:payment_pending_queue' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to Queue
+    </a>
+</div>
+
+<div class="row g-4">
+
+    <!-- Visit Summary -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i> Visit Summary
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block">Patient</small>
+                    <strong>{{ patient.full_name }}</strong>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Patient ID</small>
+                    <strong class="text-primary">{{ patient.patient_id }}</strong>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Target Department</small>
+                    <span class="badge bg-info-subtle text-info">
+                        {{ encounter.get_current_department_display }}
+                    </span>
+                </div>
+                <div class="mb-0">
+                    <small class="text-muted d-block">Current Status</small>
+                    <span class="badge bg-warning text-dark">Payment Pending</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Form -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-cash-stack me-2"></i> Payment Details
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Amount (TZS) <span class="text-danger">*</span></label>
+                        <input type="number"
+                               name="amount"
+                               class="form-control form-control-lg"
+                               placeholder="e.g. 10000"
+                               min="1"
+                               step="1"
+                               required>
+                        <div class="form-text">Enter the amount the patient is paying now.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                        <select name="payment_method" class="form-select" required>
+                            <option value="CASH">Cash</option>
+                            <option value="MOBILE_MONEY">Mobile Money (M-Pesa / Tigo / Airtel)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mobile Money Reference</label>
+                        <input type="text"
+                               name="reference"
+                               class="form-control"
+                               placeholder="Transaction ID (required for Mobile Money)">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notes (optional)</label>
+                        <input type="text"
+                               name="notes"
+                               class="form-control"
+                               placeholder="e.g. Consultation fee, Lab fee">
+                    </div>
+
+                    <div class="alert alert-info small mb-4">
+                        After confirming payment, the patient will be released to
+                        <strong>{{ encounter.get_current_department_display }}</strong>.
+                    </div>
+
+                    <button type="submit" class="btn btn-success px-4">
+                        <i class="bi bi-check-lg me-1"></i> Confirm Payment & Release
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

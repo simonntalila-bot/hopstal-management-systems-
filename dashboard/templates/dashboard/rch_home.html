@@ -1,0 +1,90 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}RCH{% endblock %}
+{% block page_title %}Reproductive &amp; Child Health{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">RCH unit</h5>
+        <p class="text-muted mb-0 small">Antenatal · Postnatal · Under-5 · Family planning · Immunization</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'dashboard:rch_report' %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-file-earmark-bar-graph me-1"></i> Monthly report
+        </a>
+        <a href="{% url 'rch:queue' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-list-task me-1"></i> Open worklist
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-4">
+        <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted text-uppercase small fw-semibold" style="letter-spacing:.04em;">In queue</div>
+                        <div class="display-6 fw-bold mt-1 mb-0">{{ waiting }}</div>
+                        <div class="text-muted small mt-1">Clients waiting for RCH</div>
+                    </div>
+                    <div class="rounded-3 bg-danger bg-opacity-10 text-danger p-2">
+                        <i class="bi bi-heart-pulse fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex flex-column justify-content-center">
+                <h6 class="fw-semibold mb-2">Quick actions</h6>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'rch:queue' %}" class="btn btn-primary">
+                        <i class="bi bi-people me-1"></i> Client worklist
+                    </a>
+                    <a href="{% url 'dashboard:rch_report' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-bar-chart me-1"></i> KPIs &amp; monthly report
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-danger mb-2"><i class="bi bi-person-hearts fs-4"></i></div>
+                <h6 class="fw-semibold">Maternal care</h6>
+                <p class="text-muted small mb-0">ANC registration, follow-up visits, risk screening and referrals.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-primary mb-2"><i class="bi bi-emoji-smile fs-4"></i></div>
+                <h6 class="fw-semibold">Child health</h6>
+                <p class="text-muted small mb-0">Under-5 growth monitoring, immunization and common childhood care.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-success mb-2"><i class="bi bi-clipboard2-check fs-4"></i></div>
+                <h6 class="fw-semibold">Reporting</h6>
+                <p class="text-muted small mb-3">Monthly KPIs with sex and age breakdown for facility reports.</p>
+                <a href="{% url 'dashboard:rch_report' %}" class="btn btn-sm btn-outline-primary">
+                    Open report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

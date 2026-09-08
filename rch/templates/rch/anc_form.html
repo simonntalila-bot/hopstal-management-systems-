@@ -1,0 +1,157 @@
+{% extends "dashboard/base.html" %}
+{% block title %}ANC{% endblock %}
+{% block page_title %}{{ service_label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · ANC</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Obstetric history</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Gravida</label>
+                    <input type="number" name="gravida" class="form-control" min="0"
+                           value="{{ profile.gravida|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Para</label>
+                    <input type="number" name="para" class="form-control" min="0"
+                           value="{{ profile.para|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Abortions</label>
+                    <input type="number" name="abortions" class="form-control" min="0"
+                           value="{{ profile.abortions|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Living children</label>
+                    <input type="number" name="living_children" class="form-control" min="0"
+                           value="{{ profile.living_children|default_if_none:'' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">HIV status</label>
+                    <input type="text" name="hiv_status" class="form-control"
+                           value="{{ profile.hiv_status }}" placeholder="Unknown / Negative / Positive">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">This ANC visit</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">LMP</label>
+                    <input type="date" name="lmp" class="form-control"
+                           value="{{ anc.lmp|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">EDD</label>
+                    <input type="date" name="edd" class="form-control"
+                           value="{{ anc.edd|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">GA (weeks)</label>
+                    <input type="number" name="gestational_age_weeks" class="form-control" min="0"
+                           value="{{ anc.gestational_age_weeks|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">ANC visit no.</label>
+                    <input type="number" name="anc_visit_number" class="form-control" min="1"
+                           value="{{ anc.anc_visit_number|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Weight (kg)</label>
+                    <input type="number" step="0.1" name="weight_kg" class="form-control"
+                           value="{{ anc.weight_kg|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Height (cm)</label>
+                    <input type="number" step="0.1" name="height_cm" class="form-control"
+                           value="{{ anc.height_cm|default_if_none:'' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">BP sys</label>
+                    <input type="number" name="bp_systolic" class="form-control"
+                           value="{{ anc.bp_systolic|default_if_none:'' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">BP dia</label>
+                    <input type="number" name="bp_diastolic" class="form-control"
+                           value="{{ anc.bp_diastolic|default_if_none:'' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">FHR</label>
+                    <input type="number" name="fetal_heart_rate" class="form-control"
+                           value="{{ anc.fetal_heart_rate|default_if_none:'' }}">
+                </div>
+
+                <!-- Fetal / abdominal measurements -->
+                <div class="col-12">
+                    <hr class="my-1">
+                    <div class="small text-muted fw-semibold text-uppercase mb-2">Fetal / abdominal measurements</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fundal height (cm)</label>
+                    <input type="number" step="0.1" min="0" name="fundal_height_cm" class="form-control"
+                           value="{{ anc.fundal_height_cm|default_if_none:'' }}"
+                           placeholder="e.g. 28">
+                    <div class="form-text">Symphysis–fundal height</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Abdominal circumference (cm)</label>
+                    <input type="number" step="0.1" min="0" name="abdominal_circumference_cm" class="form-control"
+                           value="{{ anc.abdominal_circumference_cm|default_if_none:'' }}"
+                           placeholder="e.g. 92">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Expected fetal weight (g)</label>
+                    <input type="number" min="0" name="expected_fetal_weight_g" class="form-control"
+                           value="{{ anc.expected_fetal_weight_g|default_if_none:'' }}"
+                           placeholder="e.g. 1200">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Expected fetal length (cm)</label>
+                    <input type="number" step="0.1" min="0" name="expected_fetal_length_cm" class="form-control"
+                           value="{{ anc.expected_fetal_length_cm|default_if_none:'' }}"
+                           placeholder="optional">
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label small">Risk factors</label>
+                    <textarea name="risk_factors" class="form-control" rows="2">{{ anc.risk_factors }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small">Supplements</label>
+                    <input type="text" name="supplements" class="form-control" value="{{ anc.supplements }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small">Lab notes</label>
+                    <input type="text" name="lab_notes" class="form-control" value="{{ anc.lab_notes }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Ultrasound notes</label>
+                    <textarea name="ultrasound_notes" class="form-control" rows="2">{{ anc.ultrasound_notes }}</textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Plan</label>
+                    <textarea name="plan" class="form-control" rows="2">{{ anc.plan }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include "rch/_finish_fields.html" %}
+</form>
+{% endblock %}

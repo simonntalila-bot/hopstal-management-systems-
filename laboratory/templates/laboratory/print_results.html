@@ -1,0 +1,84 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Lab results – {{ patient.full_name }}{% endblock %}
+{% block page_title %}Laboratory report{% endblock %}
+
+{% block content %}
+<style>
+  @media print {
+    .no-print, .sidebar, nav, .btn { display: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+  }
+</style>
+
+<div class="d-flex justify-content-between mb-3 no-print">
+  <a href="{% url 'laboratory:lab_queue' %}" class="btn btn-outline-secondary btn-sm">Back to queue</a>
+  <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
+    <i class="bi bi-printer me-1"></i> Print
+  </button>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="text-center mb-4">
+      <h4 class="mb-1">{{ clinic_name }}</h4>
+      <p class="text-muted mb-0">Laboratory Report</p>
+    </div>
+
+    <div class="row mb-3 small">
+      <div class="col-md-6">
+        <strong>Patient:</strong> {{ patient.full_name }}<br>
+        <strong>ID:</strong> {{ patient.patient_id }}<br>
+        {% if patient.age %}<strong>Age:</strong> {{ patient.age }} yrs<br>{% endif %}
+        <strong>Gender:</strong> {{ patient.get_gender_display }}
+      </div>
+      <div class="col-md-6">
+        <strong>Sample:</strong> {{ order.sample_number|default:"—" }}<br>
+        <strong>Reported:</strong> {{ order.released_at|date:"d M Y H:i"|default:printed_at|date:"d M Y H:i" }}<br>
+        <strong>Visit:</strong> #{{ order.encounter_id }}
+      </div>
+    </div>
+
+    {% if order.clinical_notes %}
+    <p class="small"><strong>Notes / interpretation:</strong> {{ order.clinical_notes }}</p>
+    {% endif %}
+
+    <table class="table table-bordered table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Test</th>
+          <th>Result</th>
+          <th>Unit</th>
+          <th>Reference</th>
+          <th>Flag</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>
+            <strong>{{ item.test.code }}</strong><br>
+            <small>{{ item.test.name }}</small>
+          </td>
+          <td>
+            {% if item.existing_result %}{{ item.existing_result.value|default:"—" }}{% else %}—{% endif %}
+          </td>
+          <td>{% if item.existing_result %}{{ item.existing_result.unit }}{% endif %}</td>
+          <td>{% if item.existing_result %}{{ item.existing_result.reference_range }}{% endif %}</td>
+          <td>
+            {% if item.existing_result and item.existing_result.is_abnormal %}
+              Abnormal
+            {% elif item.existing_result %}
+              Normal
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="small text-muted mt-4 mb-0">
+      This report is for clinical use. For lab-only visits, discuss treatment with a clinician if needed.
+    </p>
+  </div>
+</div>
+{% endblock %}

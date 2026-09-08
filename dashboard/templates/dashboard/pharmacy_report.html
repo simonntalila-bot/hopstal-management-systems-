@@ -1,0 +1,156 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Pharmacy report{% endblock %}
+{% block page_title %}Pharmacy monthly report{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Pharmacy report</h5>
+        <p class="text-muted mb-0">{{ summary.month_name }} · Dispensing · Inventory</p>
+    </div>
+    <a href="{% url 'dashboard:pharmacy_home' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-0">Month</label>
+                <select name="month" class="form-select form-select-sm">
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if m == summary.month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Year</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if y == summary.year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto"><button type="submit" class="btn btn-primary btn-sm">Apply</button></div>
+            <div class="col-auto"><button type="submit" name="format" value="csv" class="btn btn-success btn-sm">Excel</button></div>
+            <div class="col-auto"><button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">Print / PDF</button></div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Dispense events</div>
+            <div class="fs-3 fw-bold">{{ summary.dispense_events }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Patients</div>
+            <div class="fs-3 fw-bold">{{ summary.unique_patients }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Units dispensed</div>
+            <div class="fs-3 fw-bold">{{ summary.total_units }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Low stock</div>
+            <div class="fs-3 fw-bold text-warning">{{ summary.low_stock_count }}</div>
+        </div></div>
+    </div>
+</div>
+
+{% include "dashboard/_sex_age_table.html" with title="Dispenses by sex and age" rows=dispense_rows band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="Patients who received drugs by sex and age" rows=patients_rows band_labels=band_labels %}
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Top drugs dispensed (units)</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>#</th><th>Drug</th><th>Events</th><th>Units</th></tr></thead>
+            <tbody>
+                {% for name, units in top_drugs %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ name }}</td>
+                    <td>{{ by_drug_events|default_if_none:"" }}{{ by_drug_events.name }}</td>
+                    <td>{{ units }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">No dispensing this month</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# Simpler top drugs without dict lookup issue #}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Drugs dispensed this month</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>#</th><th>Drug</th><th>Units</th></tr></thead>
+            <tbody>
+                {% for name, units in top_drugs %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ name }}</td>
+                    <td>{{ units }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-center text-muted py-3">No dispensing this month</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header text-warning">Low stock</div>
+            <ul class="list-group list-group-flush">
+                {% for d in low_stock %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ d.name }}</span>
+                    <strong>{{ d.stock_quantity }}</strong>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">None</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header text-danger">Out of stock</div>
+            <ul class="list-group list-group-flush">
+                {% for d in out_stock %}
+                <li class="list-group-item">{{ d.name }}</li>
+                {% empty %}
+                <li class="list-group-item text-muted">None</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header">Expiring ≤ 90 days</div>
+            <ul class="list-group list-group-flush">
+                {% for d in expiring %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ d.name }}</span>
+                    <small>{{ d.expiry_date }}</small>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">None</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

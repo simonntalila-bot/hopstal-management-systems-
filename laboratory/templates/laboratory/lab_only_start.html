@@ -1,0 +1,85 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Lab – Select tests{% endblock %}
+{% block page_title %}Lab-only visit{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary me-2">{{ patient.patient_id }}</span>
+            Lab-only · select tests to run
+        </p>
+    </div>
+    <a href="{% url 'laboratory:lab_queue' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to queue
+    </a>
+</div>
+
+{% if patient.allergies %}
+<div class="alert alert-danger py-2 mb-4">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <strong>Allergies:</strong> {{ patient.allergies }}
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">
+            <i class="bi bi-eyedropper me-2"></i> Clinical note (optional)
+        </div>
+        <div class="card-body">
+            <textarea name="lab_clinical_notes" class="form-control" rows="2"
+                      placeholder="Reason for tests / clinical indication..."></textarea>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-2"></i> Select laboratory tests</span>
+            <small class="text-muted">Tick all that apply</small>
+        </div>
+        <div class="card-body" style="max-height: 420px; overflow-y: auto;">
+            {% regroup lab_tests by get_category_display as tests_by_category %}
+            {% for group in tests_by_category %}
+                <div class="fw-semibold text-primary small mb-2 mt-3">{{ group.grouper }}</div>
+                <div class="row g-1 mb-2">
+                    {% for test in group.list %}
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="lab_tests" value="{{ test.pk }}"
+                                   id="test_{{ test.pk }}">
+                            <label class="form-check-label" for="test_{{ test.pk }}">
+                                <strong>{{ test.code }}</strong> – {{ test.name }}
+                                {% if test.sample_type %}
+                                    <small class="text-muted">({{ test.sample_type }})</small>
+                                {% endif %}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% empty %}
+                <p class="text-muted mb-0">
+                    No active lab tests in the catalog.
+                    Run <code>python manage.py seed_lab_tests</code> or add tests in Admin.
+                </p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary px-4"
+                onclick="return confirm('Create lab order for selected tests?')">
+            <i class="bi bi-check2 me-1"></i> Create order &amp; collect sample
+        </button>
+        <a href="{% url 'laboratory:lab_queue' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}

@@ -1,0 +1,31 @@
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header">{{ title }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0 text-center">
+      <thead class="table-light">
+        <tr>
+          <th>Sex</th>
+          {% for b in band_labels %}
+          <th class="small">{{ b }}</th>
+          {% endfor %}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <th>{{ row.sex }}</th>
+          {% for c in row.cells %}
+          <td>{{ c }}</td>
+          {% endfor %}
+          <td class="fw-semibold">{{ row.total }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="20" class="text-muted py-3">No data</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

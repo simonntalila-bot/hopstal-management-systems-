@@ -1,0 +1,146 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Doctor report{% endblock %}
+{% block page_title %}Doctor monthly report{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Doctor report</h5>
+        <p class="text-muted mb-0">{{ summary.month_name }} · Sex × age breakdown</p>
+    </div>
+    <a href="{% url 'dashboard:doctor_home' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-0">Month</label>
+                <select name="month" class="form-select form-select-sm">
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if m == summary.month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Year</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in years %}
+                    <option value="{{ y }}" {% if y == summary.year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            </div>
+            <div class="col-auto">
+                <button type="submit" name="format" value="csv" class="btn btn-success btn-sm">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Excel
+                </button>
+            </div>
+            <div class="col-auto">
+                <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-printer me-1"></i> Print / PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Visits</div>
+            <div class="fs-3 fw-bold">{{ summary.total_visits }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">Patients</div>
+            <div class="fs-3 fw-bold">{{ summary.unique_patients }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">DTC (diarrhoea)</div>
+            <div class="fs-3 fw-bold text-warning">{{ summary.dtc_count }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted text-uppercase">STI</div>
+            <div class="fs-3 fw-bold text-danger">{{ summary.sti_count }}</div>
+        </div></div>
+    </div>
+</div>
+
+{% include "dashboard/_sex_age_table.html" with title="Visits by sex and age" matrix=matrix_visits band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="Unique patients by sex and age" matrix=matrix_patients band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="DTC cases by sex and age" matrix=matrix_dtc band_labels=band_labels %}
+{% include "dashboard/_sex_age_table.html" with title="STI cases by sex and age" matrix=matrix_sti band_labels=band_labels %}
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Top diseases (from diagnosis text)</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>#</th><th>Diagnosis</th><th>Count</th></tr></thead>
+            <tbody>
+                {% for dx, n in top_diseases %}
+                <tr><td>{{ forloop.counter }}</td><td>{{ dx }}</td><td>{{ n }}</td></tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-muted text-center py-3">No diagnoses this month</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header">DTC case details</div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Date</th><th>Patient</th><th>Sex</th><th>Age</th><th>Dx</th></tr></thead>
+                    <tbody>
+                        {% for r in dtc_rows %}
+                        <tr>
+                            <td class="small">{{ r.date|date:"d M" }}</td>
+                            <td>{{ r.patient }}</td>
+                            <td>{{ r.sex }}</td>
+                            <td>{{ r.age|default:"—" }}</td>
+                            <td class="small">{{ r.diagnosis }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-muted text-center py-3">None</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header">STI case details</div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Date</th><th>Patient</th><th>Sex</th><th>Age</th><th>Dx</th></tr></thead>
+                    <tbody>
+                        {% for r in sti_rows %}
+                        <tr>
+                            <td class="small">{{ r.date|date:"d M" }}</td>
+                            <td>{{ r.patient }}</td>
+                            <td>{{ r.sex }}</td>
+                            <td>{{ r.age|default:"—" }}</td>
+                            <td class="small">{{ r.diagnosis }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-muted text-center py-3">None</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

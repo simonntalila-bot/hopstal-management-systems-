@@ -1,0 +1,114 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Immunization{% endblock %}
+{% block page_title %}{{ service_label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · Immunization</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Record vaccine this visit</div>
+    <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_vaccine">
+            <div class="col-md-3">
+                <label class="form-label small">Vaccine</label>
+                <select name="vaccine" class="form-select" required>
+                    <option value="">— Select —</option>
+                    {% for value, label in vaccine_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Other name</label>
+                <input type="text" name="vaccine_other" class="form-control" placeholder="If Other">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Date given</label>
+                <input type="date" name="dose_date" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Next due</label>
+                <input type="date" name="next_due" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Batch</label>
+                <input type="text" name="batch_number" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Notes</label>
+                <input type="text" name="imm_notes" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">Add dose</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if doses %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Doses this visit</div>
+    <div class="card-body p-0">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Vaccine</th>
+                    <th>Date</th>
+                    <th>Next due</th>
+                    <th>Batch</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in doses %}
+                <tr>
+                    <td class="ps-3">{{ d.get_vaccine_display }}{% if d.vaccine_other %} ({{ d.vaccine_other }}){% endif %}</td>
+                    <td>{{ d.dose_date|date:"d M Y" }}</td>
+                    <td>{{ d.next_due|date:"d M Y"|default:"—" }}</td>
+                    <td>{{ d.batch_number|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">Immunization history</div>
+    <div class="card-body p-0">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Vaccine</th>
+                    <th>Date</th>
+                    <th>Next due</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in history %}
+                <tr>
+                    <td class="ps-3">{{ d.get_vaccine_display }}</td>
+                    <td>{{ d.dose_date|date:"d M Y" }}</td>
+                    <td>{{ d.next_due|date:"d M Y"|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    {% include "rch/_finish_fields.html" %}
+</form>
+{% endblock %}

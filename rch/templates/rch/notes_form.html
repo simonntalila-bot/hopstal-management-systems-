@@ -1,0 +1,18 @@
+{% extends "dashboard/base.html" %}
+{% block title %}RCH{% endblock %}
+{% block page_title %}{{ service_label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · {{ service_label }}</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    {% include "rch/_finish_fields.html" %}
+</form>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Consultation Queue{% endblock %}
+{% block page_title %}Consultation Queue{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Patients Waiting for Doctor</h5>
+        <p class="text-muted mb-0">Paid patients and those with lab results ready</p>
+    </div>
+    <span class="badge bg-primary fs-6 px-3 py-2">{{ queue|length }} waiting</span>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">#</th>
+                        <th>Patient</th>
+                        <th>Patient ID</th>
+                        <th>Status</th>
+                        <th>Waiting</th>
+                        <th class="text-end pe-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for enc in queue %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <strong>{{ enc.patient.full_name }}</strong>
+                            {% if enc.patient.allergies %}
+                                <br><small class="text-danger">⚠ Allergy</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-primary">{{ enc.patient.patient_id }}</td>
+                        <td>
+                            {% if enc.status == "RESULTS_READY" %}
+                                <span class="badge bg-success">Lab Results Ready</span>
+                            {% elif enc.status == "IN_PROGRESS" %}
+                                <span class="badge bg-primary">In Progress</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ enc.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ enc.created_at|timesince }} ago</td>
+                        <td class="text-end pe-4">
+                            <a href="{% url 'consultations:conduct_consultation' enc.pk %}"
+                               class="btn btn-sm {% if enc.status == 'RESULTS_READY' %}btn-success{% else %}btn-primary{% endif %}">
+                                {% if enc.status == "RESULTS_READY" %}
+                                    <i class="bi bi-clipboard-data me-1"></i> View Results
+                                {% else %}
+                                    <i class="bi bi-clipboard2-pulse me-1"></i> Start Consultation
+                                {% endif %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-clipboard2-pulse fs-1 d-block mb-2 opacity-50"></i>
+                            No patients waiting for consultation.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

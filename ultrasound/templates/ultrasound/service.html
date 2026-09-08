@@ -1,0 +1,94 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Ultrasound{% endblock %}
+{% block page_title %}Ultrasound Service{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary me-1">{{ patient.patient_id }}</span>
+            Ultrasound · Visit #{{ encounter.pk }}
+        </p>
+    </div>
+    <a href="{% url 'ultrasound:queue' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to queue
+    </a>
+</div>
+
+{% if reports %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">
+        <i class="bi bi-clock-history me-2"></i> Reports this visit
+        <span class="badge bg-secondary ms-1">{{ reports|length }}</span>
+    </div>
+    <div class="card-body">
+        {% for r in reports %}
+        <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+            <div class="small text-muted mb-1">
+                {{ r.created_at|date:"d M Y H:i" }}
+                {% if r.performed_by %} · {{ r.performed_by }}{% endif %}
+            </div>
+            {% if r.findings %}
+            <p class="mb-2" style="white-space: pre-wrap;">{{ r.findings }}</p>
+            {% else %}
+            <p class="text-muted mb-2">No written findings.</p>
+            {% endif %}
+            {% if r.image %}
+            <a href="{{ r.image.url }}" target="_blank" rel="noopener">
+                <img src="{{ r.image.url }}" alt="Ultrasound"
+                     class="img-fluid rounded border" style="max-height: 220px;">
+            </a>
+            <div class="mt-1">
+                <a href="{{ r.image.url }}" target="_blank" class="small">Open full image</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">
+            <i class="bi bi-pencil-square me-2"></i> New findings
+        </div>
+        <div class="card-body">
+            <label class="form-label">Findings / report</label>
+            <textarea name="findings" class="form-control mb-3" rows="5"
+                      placeholder="Ultrasound findings..."></textarea>
+            <!-- name=findings preferred; views.py also accepts notes -->
+
+            <label class="form-label">Attach image (optional)</label>
+            <input type="file" name="image" class="form-control" accept="image/*">
+            <div class="form-text">JPG or PNG from the machine or phone camera.</div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <p class="small text-muted mb-3 mb-md-2">
+                <strong>Save report</strong> – stay on this page.<br>
+                <strong>Return to Doctor</strong> – patient appears on doctor queue with results ready.<br>
+                <strong>Complete visit</strong> – close visit (no doctor follow-up).
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" name="action" value="save_only" class="btn btn-outline-secondary">
+                    <i class="bi bi-save me-1"></i> Save report
+                </button>
+                <button type="submit" name="action" value="return_doctor" class="btn btn-primary"
+                        onclick="return confirm('Save and send patient back to Doctor with results?')">
+                    <i class="bi bi-send me-1"></i> Save &amp; return to Doctor
+                </button>
+                <button type="submit" name="action" value="complete" class="btn btn-success"
+                        onclick="return confirm('Complete this visit with no doctor follow-up?')">
+                    <i class="bi bi-check-lg me-1"></i> Save &amp; complete visit
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Dispense{% endblock %}
+{% block page_title %}Dispense{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">
+            <span class="badge bg-primary-subtle text-primary">{{ patient.patient_id }}</span>
+            <span class="ms-1">Pharmacy</span>
+        </p>
+    </div>
+    <a href="{% url 'pharmacy:pharmacy_queue' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to queue
+    </a>
+</div>
+
+{% if patient.allergies %}
+<div class="alert alert-danger py-2 mb-4">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <strong>Allergies:</strong> {{ patient.allergies }}
+</div>
+{% endif %}
+
+<!-- Add medicine (doctor Rx or pharmacy-only / OTC) -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header">
+        <i class="bi bi-plus-circle me-2"></i> Add medicine
+    </div>
+    <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_item">
+            <div class="col-md-5">
+                <label class="form-label small">Drug</label>
+                <select name="drug_id" class="form-select" required>
+                    <option value="">Select medicine…</option>
+                    {% for d in drugs %}
+                    <option value="{{ d.pk }}">
+                        {{ d.name }}{% if d.strength %} {{ d.strength }}{% endif %}
+                        — stock {{ d.stock_quantity }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Qty</label>
+                <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Instructions</label>
+                <input type="text" name="instructions" class="form-control"
+                       placeholder="e.g. 1 tab TDS">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-plus-lg me-1"></i> Add
+                </button>
+            </div>
+        </form>
+        {% if not drugs %}
+        <p class="text-muted small mt-2 mb-0">
+            No active drugs in catalog. Add stock under Inventory first.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Dispense list -->
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="dispense">
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-capsule me-2"></i> Items to dispense</span>
+            <span class="badge bg-secondary">{{ prescriptions|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" style="width:44px;">
+                                <input type="checkbox" class="form-check-input"
+                                       title="Toggle all"
+                                       onclick="document.querySelectorAll('.rx-check:not(:disabled)').forEach(c => c.checked = this.checked)">
+                            </th>
+                            <th>Medicine</th>
+                            <th>Qty</th>
+                            <th>Instructions</th>
+                            <th>Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rx in prescriptions %}
+                        <tr class="{% if rx.already_dispensed %}table-secondary{% elif not rx.can_dispense %}table-warning{% endif %}">
+                            <td class="ps-3">
+                                <input type="checkbox"
+                                       class="form-check-input rx-check"
+                                       name="prescription_ids"
+                                       value="{{ rx.pk }}"
+                                       {% if rx.can_dispense %}checked{% endif %}
+                                       {% if not rx.can_dispense %}disabled{% endif %}>
+                            </td>
+                            <td>
+                                <strong>{{ rx.drug.name }}</strong>
+                                {% if rx.drug.strength %}
+                                <span class="text-muted small">{{ rx.drug.strength }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ rx.quantity }}</td>
+                            <td class="small">{{ rx.dosage_instructions|default:"—" }}</td>
+                            <td>
+                                {% if rx.drug.stock_quantity < rx.quantity %}
+                                <span class="badge text-bg-danger">{{ rx.drug.stock_quantity }}</span>
+                                {% else %}
+                                <span class="badge text-bg-success">{{ rx.drug.stock_quantity }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if rx.already_dispensed %}
+                                    <span class="text-muted">Dispensed</span>
+                                {% elif rx.can_dispense %}
+                                    <span class="text-success">Ready</span>
+                                {% else %}
+                                    <span class="text-danger">Blocked</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                No medicines on this visit yet.<br>
+                                <span class="small">Use <strong>Add medicine</strong> above (pharmacy-only / OTC), then dispense.</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if prescriptions %}
+    <button type="submit" class="btn btn-success px-4"
+            onclick="return confirm('Dispense selected items and complete this visit?')">
+        <i class="bi bi-check2 me-1"></i> Dispense &amp; complete visit
+    </button>
+    {% endif %}
+</form>
+
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Under-5{% endblock %}
+{% block page_title %}{{ service_label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · Under-5</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Growth & vitals</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Weight (kg)</label>
+                    <input type="number" step="0.01" name="weight_kg" class="form-control"
+                           value="{{ under5.weight_kg|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Height (cm)</label>
+                    <input type="number" step="0.1" name="height_cm" class="form-control"
+                           value="{{ under5.height_cm|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">MUAC (cm)</label>
+                    <input type="number" step="0.1" name="muac_cm" class="form-control"
+                           value="{{ under5.muac_cm|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Temperature (°C)</label>
+                    <input type="number" step="0.1" name="temperature_c" class="form-control"
+                           value="{{ under5.temperature_c|default_if_none:'' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Nutrition status</label>
+                    <input type="text" name="nutrition_status" class="form-control"
+                           value="{{ under5.nutrition_status }}"
+                           placeholder="Normal / MAM / SAM">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Clinical</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label small">Development notes</label>
+                    <textarea name="development_notes" class="form-control" rows="2">{{ under5.development_notes }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small">Diagnosis</label>
+                    <input type="text" name="diagnosis" class="form-control" value="{{ under5.diagnosis }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Treatment</label>
+                    <textarea name="treatment" class="form-control" rows="2">{{ under5.treatment }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include "rch/_finish_fields.html" %}
+</form>
+{% endblock %}

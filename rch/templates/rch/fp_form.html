@@ -1,0 +1,61 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Family planning{% endblock %}
+{% block page_title %}{{ service_label }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ patient.full_name }}</h5>
+        <p class="text-muted mb-0">{{ patient.patient_id }} · Family planning</p>
+    </div>
+    <a href="{% url 'rch:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Method & counselling</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small">Method</label>
+                    <select name="method" class="form-select">
+                        <option value="">— Select —</option>
+                        {% for value, label in method_choices %}
+                        <option value="{{ value }}" {% if fp.method == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input type="checkbox" name="method_provided" class="form-check-input" id="mp"
+                               {% if fp.method_provided %}checked{% endif %}>
+                        <label class="form-check-label" for="mp">Method provided this visit</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Previous method</label>
+                    <input type="text" name="previous_method" class="form-control"
+                           value="{{ fp.previous_method }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">FP follow-up date</label>
+                    <input type="date" name="follow_up_date" class="form-control"
+                           value="{{ fp.follow_up_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Side effects</label>
+                    <textarea name="side_effects" class="form-control" rows="2">{{ fp.side_effects }}</textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Counselling notes</label>
+                    <textarea name="counselling_notes" class="form-control" rows="3">{{ fp.counselling_notes }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include "rch/_finish_fields.html" %}
+</form>
+{% endblock %}

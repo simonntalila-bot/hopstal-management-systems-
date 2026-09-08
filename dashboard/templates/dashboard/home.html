@@ -1,0 +1,287 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+{% if role == "RECEPTIONIST" or role == "ADMIN" %}
+
+<!-- Welcome -->
+<div class="mb-4">
+    <h5 class="fw-semibold text-dark mb-1">Welcome back, {{ display_name }}</h5>
+    <p class="text-muted mb-0">Here’s what’s happening in the hospital today.</p>
+</div>
+
+<!-- Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon-box bg-primary-subtle text-primary">
+                <i class="bi bi-people"></i>
+            </div>
+            <h6>Total Patients</h6>
+            <h3>{{ total_patients }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon-box bg-success-subtle text-success">
+                <i class="bi bi-person-plus"></i>
+            </div>
+            <h6>Registered Today</h6>
+            <h3>{{ registered_today }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon-box bg-warning-subtle text-warning">
+                <i class="bi bi-clock-history"></i>
+            </div>
+            <h6>In Queue</h6>
+            <h3>{{ in_queue }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon-box bg-info-subtle text-info">
+                <i class="bi bi-calendar-check"></i>
+            </div>
+            <h6>Appointments</h6>
+            <h3>{{ appointments_today }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Quick Actions</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="{% url 'patients:patient_register' %}" class="btn btn-primary w-100 py-3">
+                            <i class="bi bi-person-plus me-2"></i> Register New Patient
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'patients:patient_list' %}" class="btn btn-outline-primary w-100 py-3">
+                            <i class="bi bi-search me-2"></i> Search Patients
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">System Info</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Role</span>
+                    <strong>{{ role_display }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">User</span>
+                    <strong>{{ display_name }}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Status</span>
+                    <span class="badge bg-success">Active</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif role == "DOCTOR" %}
+
+<!-- Welcome -->
+<div class="mb-4">
+    <h5 class="fw-semibold text-dark mb-1">Welcome back, Dr. {{ display_name }}</h5>
+    <p class="text-muted mb-0">Here’s your consultation overview for today.</p>
+</div>
+
+<!-- Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-primary-subtle text-primary">
+                <i class="bi bi-clipboard2-pulse"></i>
+            </div>
+            <h6>Waiting for Consultation</h6>
+            <h3>{{ waiting_consultation }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-success-subtle text-success">
+                <i class="bi bi-check2-circle"></i>
+            </div>
+            <h6>Seen Today</h6>
+            <h3>{{ seen_today }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-warning-subtle text-warning">
+                <i class="bi bi-file-earmark-medical"></i>
+            </div>
+            <h6>Results Ready</h6>
+            <h3>{{ results_ready }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Quick Actions</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="{% url 'consultations:consultation_queue' %}" class="btn btn-primary w-100 py-3">
+                            <i class="bi bi-clipboard2-pulse me-2"></i> Open Consultation Queue
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'consultations:consultation_queue' %}" class="btn btn-outline-primary w-100 py-3">
+                            <i class="bi bi-people me-2"></i> View Waiting Patients
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i> How it works
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 text-muted">
+                    <li class="mb-2">Patients appear after the Nurse records vitals.</li>
+                    <li class="mb-2">Click <strong>Start Consultation</strong> to write notes and prescribe.</li>
+                    <li class="mb-2">After finishing, the patient is sent to Pharmacy if medicines were prescribed.</li>
+                    <li>Patients with results show as <span class="badge bg-warning-subtle text-warning">Results Ready</span>.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Doctor Info</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Name</span>
+                    <strong>Dr. {{ display_name }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Role</span>
+                    <strong>{{ role_display }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="text-muted">Status</span>
+                    <span class="badge bg-success">Active</span>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Patients Waiting</span>
+                    <strong class="text-primary">{{ waiting_consultation }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif role == "NURSE" %}
+
+<div class="mb-4">
+    <h5 class="fw-semibold text-dark mb-1">Welcome back, {{ display_name }}</h5>
+    <p class="text-muted mb-0">Patients waiting for vitals.</p>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-primary-subtle text-primary">
+                <i class="bi bi-heart-pulse"></i>
+            </div>
+            <h6>Waiting for Vitals</h6>
+            <h3>{{ waiting_vitals }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-success-subtle text-success">
+                <i class="bi bi-check2-all"></i>
+            </div>
+            <h6>Vitals Taken Today</h6>
+            <h3>{{ vitals_taken_today }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <a href="{% url 'encounters:vitals_queue' %}" class="btn btn-primary px-4">
+            <i class="bi bi-heart-pulse me-2"></i> Open Vitals Queue
+        </a>
+    </div>
+</div>
+
+{% elif role == "PHARMACIST" %}
+
+<div class="mb-4">
+    <h5 class="fw-semibold text-dark mb-1">Welcome back, {{ display_name }}</h5>
+    <p class="text-muted mb-0">Pharmacy overview</p>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-primary-subtle text-primary">
+                <i class="bi bi-capsule"></i>
+            </div>
+            <h6>Pending Prescriptions</h6>
+            <h3>{{ pending_prescriptions }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-danger-subtle text-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h6>Low Stock Items</h6>
+            <h3>{{ low_stock }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="icon-box bg-warning-subtle text-warning">
+                <i class="bi bi-calendar-x"></i>
+            </div>
+            <h6>Expiring Soon</h6>
+            <h3>{{ expiring_soon }}</h3>
+        </div>
+    </div>
+</div>
+
+{% else %}
+
+<div class="mb-4">
+    <h5 class="fw-semibold text-dark mb-1">Welcome, {{ display_name }}</h5>
+    <p class="text-muted mb-0">Your role-specific dashboard will appear here.</p>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <p class="text-muted mb-0">System is running normally.</p>
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}

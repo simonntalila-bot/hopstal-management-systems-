@@ -1,0 +1,60 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Pharmacy Queue{% endblock %}
+{% block page_title %}Pharmacy Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">Waiting for medicines</h5>
+        <p class="text-muted mb-0">Paid patients released to Pharmacy</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'pharmacy:inventory' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-box-seam me-1"></i> Inventory
+        </a>
+        <span class="badge bg-success fs-6 px-3 py-2">{{ visits|length }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Patient</th>
+                    <th>Medicines</th>
+                    <th>Waiting</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for visit in visits %}
+                <tr>
+                    <td class="ps-4">
+                        <strong>{{ visit.patient.full_name }}</strong><br>
+                        <small class="text-primary">{{ visit.patient.patient_id }}</small>
+                    </td>
+                    <td>
+                        {% for rx in visit.prescriptions.all %}
+                        <span class="badge bg-secondary-subtle text-secondary me-1">
+                            {{ rx.drug.name }} ×{{ rx.quantity }}
+                        </span>
+                        {% empty %}—{% endfor %}
+                    </td>
+                    <td>{{ visit.created_at|timesince }} ago</td>
+                    <td class="text-end pe-4">
+                        <a href="{% url 'pharmacy:dispense' visit.pk %}" class="btn btn-sm btn-success">
+                            Dispense
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-5">No patients in pharmacy queue.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

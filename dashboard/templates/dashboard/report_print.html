@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }} – {{ clinic_name }}</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 24px; color: #111; }
+        h1 { font-size: 1.25rem; margin-bottom: 4px; }
+        .meta { color: #555; margin-bottom: 16px; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+        th { background: #f3f4f6; }
+        .total { font-weight: 700; margin-top: 12px; }
+        @media print {
+            .no-print { display: none; }
+            body { margin: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="margin-bottom: 16px;">
+        <button onclick="window.print()">Print / Save as PDF</button>
+        <a href="{% url 'dashboard:admin_reports' %}">Back</a>
+    </div>
+
+    <h1>{{ clinic_name }} — {{ title }}</h1>
+    <div class="meta">Period: {{ d_from|date:"d M Y" }} – {{ d_to|date:"d M Y" }}</div>
+
+    <table>
+        <thead>
+            <tr>
+                {% for h in headers %}
+                <th>{{ h }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>{{ r.c1 }}</td>
+                <td>{{ r.c2 }}</td>
+                <td>{{ r.c3 }}</td>
+                <td>{{ r.c4 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">No data in this period.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if total is not None %}
+    <p class="total">Total: TZS {{ total|floatformat:0 }}</p>
+    {% endif %}
+</body>
+</html>

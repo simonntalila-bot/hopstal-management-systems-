@@ -1,0 +1,98 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Labour admission{% endblock %}
+{% block page_title %}Labour admission{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <div>
+        <h5 class="fw-semibold mb-1">{{ mother.full_name }}</h5>
+        <p class="text-muted mb-0">{{ mother.patient_id }}</p>
+    </div>
+    <a href="{% url 'labour:queue' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header">Admission</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label small">Gravida</label>
+                    <input type="number" name="gravida" class="form-control"
+                           value="{{ prefill.gravida|default_if_none:'' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Para</label>
+                    <input type="number" name="para" class="form-control"
+                           value="{{ prefill.para|default_if_none:'' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">GA (weeks)</label>
+                    <input type="number" name="gestational_age_weeks" class="form-control"
+                           value="{{ prefill.gestational_age_weeks|default_if_none:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">LMP</label>
+                    <input type="date" name="lmp" class="form-control"
+                           value="{{ prefill.lmp|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">EDD</label>
+                    <input type="date" name="edd" class="form-control"
+                           value="{{ prefill.edd|date:'Y-m-d' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Presenting complaint</label>
+                    <textarea name="presenting_complaint" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Membrane status</label>
+                    <input type="text" name="membrane_status" class="form-control" placeholder="Intact / Ruptured">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Liquor</label>
+                    <input type="text" name="liquor" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Cervical dilatation (cm)</label>
+                    <input type="number" step="0.5" name="cervical_dilatation_cm" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">BP sys</label>
+                    <input type="number" name="initial_bp_systolic" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">BP dia</label>
+                    <input type="number" name="initial_bp_diastolic" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Pulse</label>
+                    <input type="number" name="initial_pulse" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Temp °C</label>
+                    <input type="number" step="0.1" name="initial_temperature" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="is_high_risk" class="form-check-input" id="hr">
+                        <label class="form-check-label" for="hr">High risk</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="previous_cs" class="form-check-input" id="pcs">
+                        <label class="form-check-label" for="pcs">Previous C-section</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small">Notes</label>
+                    <textarea name="notes" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save admission & open case</button>
+</form>
+{% endblock %}

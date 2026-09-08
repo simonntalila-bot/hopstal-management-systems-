@@ -1,0 +1,71 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}System reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-semibold mb-1">Reports</h5>
+        <p class="text-muted mb-0">Export CSV (Excel) or open print view for PDF</p>
+    </div>
+    <a href="{% url 'dashboard:admin_home' %}" class="btn btn-outline-secondary btn-sm">Control Centre</a>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input type="date" name="from" class="form-control" value="{{ d_from|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input type="date" name="to" class="form-control" value="{{ d_to|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Report</label>
+                <select name="report" class="form-select" required>
+                    <option value="revenue">Revenue / payments</option>
+                    <option value="visits">Visits</option>
+                    <option value="stock">Pharmacy stock</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex flex-wrap gap-2">
+                <button type="submit" name="format" value="csv" class="btn btn-success">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Excel (CSV)
+                </button>
+                <button type="submit" name="format" value="html" class="btn btn-outline-primary">
+                    <i class="bi bi-printer me-1"></i> Print / PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="fw-semibold">Revenue</h6>
+                <p class="small text-muted mb-0">All payments in the date range, with totals.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="fw-semibold">Visits</h6>
+                <p class="small text-muted mb-0">Encounters by department and status.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="fw-semibold">Stock</h6>
+                <p class="small text-muted mb-0">Current pharmacy inventory snapshot.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

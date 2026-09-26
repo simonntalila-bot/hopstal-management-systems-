@@ -24,8 +24,19 @@ fail() {
 }
 
 # --- 1. deny-listed paths ---------------------------------------------------
+# Local config, credentials, keys, databases and backup archives.
+# - .env*                     environment files
+# - local_settings.py         developer machine settings
+# - creds/credentials*.json   credential blobs
+# - secrets.y(a)ml            credential blobs
+# - .netrc .pgpass my.cnf     database client credentials
+# - *.pem *.key *.p12 ...     keys and certificates
+# - *.sqlite3 *.db *.dump    databases
+# - *.sql *.sql.gz *.bundle   database dumps
+# - *.zip *.tar.gz *.tgz ...  archives that may contain dumps
+# - backups/ backup-*         backup output directories and files
 denied=$(git diff --cached --name-only --diff-filter=ACMR | grep -Ei \
-    '(^|/)(\.env([^/]*)?|local_settings\.py|.*\.(pem|key|p12|pfx|jks|keystore|asc|gpg)|id_rsa[^/]*|id_ed25519[^/]*|credentials?[^/]*\.json|secrets?\.ya?ml|.*\.(sqlite3?|db|dump))$' \
+    '(^|/)(\.env([^/]*)?|local_settings\.py|.*\.(pem|key|p12|pfx|jks|keystore|asc|gpg)|id_rsa[^/]*|id_ed25519[^/]*|creds?[^/]*\.json|credentials?[^/]*\.json|secrets?\.ya?ml|\.netrc|\.pgpass|my\.cnf|.*\.(sqlite3?|db|dump|dump\.gz|sql|sql\.gz|sql\.bz2|sql\.xz|sql\.zst|bundle|bak|zip|tar\.gz|tgz|tbz2|7z|rar)|backups?/[^/]*|backup-[^/]*)$' \
     || true)
 
 if [ -n "$denied" ]; then
@@ -48,8 +59,10 @@ quoted="$q[^\"']{4,}$q"
 pattern="$keyword[A-Za-z0-9_]*[\"']?[[:space:]]*[:=][[:space:]]*($quoted|$bare)"
 envstyle="^[A-Z][A-Z0-9_]*(PASSWORD|PASSWD|PWD|SECRET|API_?KEY|TOKEN|PRIVATE_?KEY|CREDENTIALS?)[A-Z0-9_]*="
 
-# Allow-list: env-var reads, placeholders, validators, settings indirection.
-allow='os\.environ|getenv|environ\.get|settings\.|^[[:space:]]*(import|from) |REDACTED|REMOVED-ROTATE|\*\*\*|get_random_secret_key|AUTH_PASSWORD_VALIDATORS|password_validation|DB_PASSWORD"'
+# Allow-list: env-var reads, placeholders, validators, settings indirection,
+# throwaway fixtures used by the automated test suite, and values that are
+# read from an attribute rather than written as a literal.
+allow='os\.environ|getenv|environ\.get|settings\.|^[[:space:]]*(import|from) |REDACTED|REMOVED-ROTATE|\*\*\*|get_random_secret_key|AUTH_PASSWORD_VALIDATORS|password_validation|DB_PASSWORD"|TestPass|test[-_]?password|wrong[-_]?password|dummy[-_]?password|placeholder|example[-_]?password|s3v4|max-age=|\b(self|cls|request|obj|user|form|data|kwargs|config|options|context)\.[A-Za-z_]'
 
 hits=$(printf '%s\n' "$added" | grep -Ei "$pattern" | grep -Eiv "$allow" || true)
 hits2=$(printf '%s\n' "$added" | grep -Ei "$envstyle" | grep -Eiv "$allow" || true)

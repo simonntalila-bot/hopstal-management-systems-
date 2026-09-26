@@ -243,11 +243,58 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic on server
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# --- Uploads: local disk in development, S3-compatible in production --------
+#
+# Set AWS_STORAGE_BUCKET_NAME to switch uploads to object storage. Without it
+# the project keeps using the local filesystem, so development is unchanged.
+#
+#   Patient QR codes      patients.Patient.qr_code
+#   Patient documents     patients.PatientDocument.document
+#   Ultrasound images     ultrasound.UltrasoundReport.image
+#
+# No bucket name, endpoint, region, access key or secret is hard-coded here.
+# Every value is read from the environment. See docs/MEDIA_STORAGE.md for the
+# full list of variable names.
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "")
+
+# Whitespace-only values are treated as "not configured".
+AWS_STORAGE_BUCKET_NAME = AWS_STORAGE_BUCKET_NAME.strip()
+
+USING_S3_STORAGE = bool(AWS_STORAGE_BUCKET_NAME)
+
+if USING_S3_STORAGE:
+    # Consumed by boto3/django-storages from the environment.
+    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    AWS_STORAGE_BUCKET_NAME = AWS_STORAGE_BUCKET_NAME
+    AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "")
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "") or None
+    AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "") or None
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": os.environ.get("AWS_S3_OBJECT_CACHE_CONTROL", "max-age=86400"),
+    }
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = (
+        os.environ.get("AWS_QUERYSTRING_AUTH", "true").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
+    AWS_S3_FILE_OVERWRITE = False
+
+    # Keep stored keys lowercase-only: object stores vary in how they treat
+    # upper-case characters in keys.
+    AWS_S3_SIGNATURE_VERSION = os.environ.get("AWS_S3_SIGNATURE_VERSION", "s3v4")
+
 # WhiteNoise serves STATIC_ROOT in production. CompressedStaticFilesStorage is
 # used instead of the manifest variant so a missing asset degrades to a normal
 # 404 rather than a template exception.
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": {
+        "BACKEND": (
+            "storages.backends.s3.S3Storage"
+            if USING_S3_STORAGE
+            else "django.core.files.storage.FileSystemStorage"
+        )
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },

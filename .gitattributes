@@ -1,0 +1,25 @@
+# Line endings
+#
+# The pre-commit guard and the backup scripts run under /bin/sh on the Linux
+# host. CRLF line endings make them fail with "bad interpreter", so these are
+# pinned to LF regardless of any developer's core.autocrlf setting.
+*.sh text eol=lf
+.githooks/pre-commit text eol=lf
+.githooks/* text eol=lf
+
+# Normalise everything else to LF in the repository, check out per platform.
+* text=auto
+
+# Binary files that must never be line-ending translated.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

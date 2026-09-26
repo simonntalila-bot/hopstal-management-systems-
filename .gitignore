@@ -7,11 +7,38 @@ hms_project/local_settings.py
 local_settings.py
 local_settings.*.hold
 *secret*.json
+credentials*.json
+secrets.yml
+secrets.yaml
+.netrc
 *.pem
 *.key
 *.p12
 *.pfx
 id_rsa*
+.pgpass
+my.cnf
+
+# Database backups and archives (see docs/DATABASE_BACKUP.md)
+backups/
+backup/
+*.sql
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.sql.zst
+*.dump
+*.dump.gz
+*.bundle
+backup-*
+*_backup
+*.bak
+*.tbz2
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
 
 # Python virtual environments
 venv/
@@ -53,7 +80,6 @@ media/
 *.sqlite
 db.sqlite3
 *.db
-*.dump
 
 # Test / coverage / caches
 .pytest_cache/

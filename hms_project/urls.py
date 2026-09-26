@@ -9,7 +9,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -79,5 +80,21 @@ urlpatterns = [
     path("labour/", include("labour.urls")),
 ]
 
-if settings.DEBUG:
+if settings.USING_S3_STORAGE:
+    # Uploads are served straight from the object store / CDN. No Django URL
+    # is needed, so no route is registered here.
+    pass
+elif settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # Local disk in production (e.g. a VPS with a persistent volume and no
+    # nginx block yet). This keeps uploads reachable with DEBUG=False instead
+    # of 404-ing every patient document, QR code and ultrasound image.
+    # On the VPS, serve /media/ with nginx and this block becomes redundant.
+    urlpatterns += [
+        re_path(
+            r"^media/(?P<path>.*)$",
+            serve,
+            {"document_root": settings.MEDIA_ROOT},
+        ),
+    ]

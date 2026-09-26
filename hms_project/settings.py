@@ -7,18 +7,62 @@ Configured for:
 - Tanzania timezone
 - Role-based authentication
 
-Local overrides: create hms_project/local_settings.py (gitignored).
-Production: set env vars on the server (no .env file required).
+Configuration is read in this order, later sources winning:
+
+1. Real environment variables (systemd, cPanel UI, `export`).
+2. A .env file next to manage.py, if one exists.
+3. The defaults below, which are only safe for development.
+
+The .env step exists because some hosts do not give a web application a
+reliable way to set environment variables. cPanel "Setup Python App" runs the
+app under Passenger, where there is no systemd EnvironmentFile to read. The
+file is gitignored, must be chmod 600, and must never be committed.
+
+Local overrides: create hms_project/local_settings.py (gitignored, applied last).
 """
 
 from pathlib import Path
 from django.contrib.messages import constants as message_constants
+from django.core.exceptions import ImproperlyConfigured
 import os
 
 # ---------------------------------------------------------------------------
 # BASE DIRECTORY
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# ---------------------------------------------------------------------------
+# .env FILE (optional)
+# ---------------------------------------------------------------------------
+# Loaded before any os.environ read below, and never overriding a real
+# environment variable, so an explicit `export` or a systemd setting always
+# wins over the file. A missing file is normal and not an error.
+def _load_dotenv():
+    env_path = BASE_DIR / ".env"
+    if not env_path.is_file():
+        return
+    try:
+        import re
+    except ImportError:  # pragma: no cover - re is always available
+        return
+
+    pattern = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$")
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = pattern.match(line)
+        if not match:
+            continue
+        name, value = match.group(1), match.group(2).strip()
+        # Strip one layer of matching quotes; values may legitimately contain #.
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        os.environ.setdefault(name, value)
+
+
+_load_dotenv()
 
 
 def env_flag(name, default="0"):
@@ -50,14 +94,28 @@ def env_list(name, default="", normalize_origin=False):
 # ---------------------------------------------------------------------------
 # Generate production key:
 # python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-change-me-in-production-hms-2026-tanzania",
-)
+INSECURE_DEFAULT_SECRET_KEY = "django-insecure-placeholder-rotate-on-deploy-hms-2026"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", INSECURE_DEFAULT_SECRET_KEY)
 
 # DEBUG is True ONLY when you explicitly enable it (local_settings or DJANGO_DEBUG=1)
 # Default = False (safe for production)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0").lower() in ("1", "true", "yes")
+
+# Refuse to serve a real site with the placeholder key. Without this, a
+# deployment that fails to pick up its environment (wrong .env path on a
+# shared host, an unset variable in a cPanel app) starts up perfectly happily
+# and every session, CSRF token and password-reset link is signed with a key
+# that is published in this repository. Failing here is far better than
+# discovering it later. `manage.py test` supplies its own key in
+# hms_project/test_settings.py, so the suite is unaffected.
+if not DEBUG and SECRET_KEY == INSECURE_DEFAULT_SECRET_KEY:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY is not set, so the application would run with the "
+        "insecure placeholder key that is public in this repository. Set a real "
+        "key before serving traffic, for example by putting "
+        "DJANGO_SECRET_KEY=... in the .env file next to manage.py, or by setting "
+        "it in the host's environment."
+    )
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 

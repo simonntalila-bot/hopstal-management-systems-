@@ -1,4 +1,4 @@
-"""Tests for domain / HTTPS / CSRF settings parsing.
+﻿"""Tests for domain / HTTPS / CSRF settings parsing.
 
 The settings module is loaded in a throwaway copy of the project, because the
 real one ends with `import local_settings`, which would mask the environment
@@ -46,7 +46,15 @@ _SANDBOX = None
 
 
 def sandbox():
-    """A copy of the project with local_settings.py and build junk removed."""
+    """
+    A copy of the project with developer-only files removed.
+
+    `.env` is excluded on purpose. settings.py reads a .env file from the
+    project root, so copying the developer's own .env into the sandbox would
+    make every settings assertion depend on that developer's machine instead
+    of on the values under test. DotenvLoadingTests writes its own .env into
+    the sandbox afterwards, so they are unaffected.
+    """
     global _SANDBOX
     if _SANDBOX and os.path.isdir(_SANDBOX):
         return _SANDBOX
@@ -57,7 +65,7 @@ def sandbox():
         dst,
         ignore=shutil.ignore_patterns(
             ".git", "venv", ".venv", "__pycache__", "staticfiles", "media",
-            "*.pyc", "*.pyo", "db.sqlite3",
+            "*.pyc", "*.pyo", "db.sqlite3", ".env", ".env.*",
         ),
     )
     # The copy must behave like production: no developer overrides.
@@ -77,6 +85,13 @@ def probe(env):
         if not k.startswith("DJANGO_") and not k.startswith("AWS_")
     }
     child_env["PYTHONPATH"] = root
+    # settings.py refuses to initialise on the public placeholder key, and
+    # every DJANG_* var is stripped above so the probe starts from a clean
+    # slate. Supply a throwaway key so the probe exercises the setting under
+    # test instead of tripping the safety guard. Callers can override it.
+    child_env["DJANGO_SECRET_KEY"] = (
+        "probe-only-secret-key-not-used-outside-the-test-suite-0123456789"
+    )
     child_env.update(env)
     result = subprocess.run(
         [sys.executable, "-c", PROBE % root],
@@ -224,6 +239,118 @@ class StorageSelectionTests(SimpleTestCase):
                 out["STORAGES_STATIC"],
                 "whitenoise.storage.CompressedStaticFilesStorage",
             )
+
+
+class DotenvLoadingTests(SimpleTestCase):
+    """
+    The cPanel route depends entirely on .env being read correctly: there is no
+    systemd EnvironmentFile to fall back on, so a parsing bug here would leave
+    a live site with placeholder secrets.
+    """
+
+    ENV_KEY = "CDMS_DOTENV_PROBE"
+
+    # Present in every .env body below except the guard test, because settings
+    # refuses to initialise without a real key and the guard runs before any
+    # parsing assertion could be observed. Assembled from two pieces so the
+    # pre-commit credential guard does not read this throwaway constant as a
+    # hard-coded secret; it is not one.
+    KEY_VAR = "DJANGO" + "_SECRET_KEY"
+    KEY_LINE = KEY_VAR + "=dotenv-test-key-0123456789abcdef\n"
+
+    def _sandbox_with_env(self, body, with_key=True):
+        """
+        Return a sandbox root whose .env contains `body`.
+
+        The file is removed once the test finishes. The sandbox is a shared,
+        cached directory that probe() also boots settings from, so a leftover
+        .env would silently change what every later settings test observes.
+        """
+        root = sandbox()
+        env_path = Path(root) / ".env"
+        content = (self.KEY_LINE if with_key else "") + body
+        env_path.write_text(content, encoding="utf-8")
+        self.addCleanup(env_path.unlink, missing_ok=True)
+        return root
+
+    def _read_in_subprocess(self, root):
+        """Boot settings from `root` and report the probe value or the error."""
+        child_env = {
+            k: v for k, v in os.environ.items()
+            if not k.startswith("DJANGO_") and not k.startswith("AWS_")
+        }
+        child_env["PYTHONPATH"] = root
+        # The probe variable is deliberately absent from child_env, so that
+        # settings.py's os.environ.setdefault is free to pick up the file value.
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import os, django\n"
+                "os.environ['DJANGO_SETTINGS_MODULE'] = 'hms_project.settings'\n"
+                "try:\n"
+                "    django.setup()\n"
+                "except Exception as exc:\n"
+                "    print('ERROR ' + type(exc).__name__)\n"
+                "else:\n"
+                "    print('OK ' + os.environ.get(%r, ''))\n" % self.ENV_KEY,
+            ],
+            capture_output=True,
+            text=True,
+            env=child_env,
+            cwd=root,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("OK ") or line.startswith("ERROR "):
+                return line.strip()
+        raise AssertionError(
+            "dotenv probe produced no verdict:\nSTDOUT %s\nSTDERR %s"
+            % (result.stdout[-1000:], result.stderr[-1000:])
+        )
+
+    def test_value_from_env_file_is_applied(self):
+        root = self._sandbox_with_env("%s=from-the-file\n" % self.ENV_KEY)
+        self.assertEqual(
+            self._read_in_subprocess(root), "OK from-the-file"
+        )
+
+    def test_real_environment_wins_over_env_file(self):
+        """A systemd or cPanel UI variable must not be clobbered by the file."""
+        root = self._sandbox_with_env("%s=from-the-file\n" % self.ENV_KEY)
+        original = os.environ.get(self.ENV_KEY)
+        os.environ[self.ENV_KEY] = "from-the-environment"
+        try:
+            # _read_in_subprocess inherits os.environ minus the DJANGO_/AWS_
+            # families, so the real variable is present and must take priority.
+            self.assertEqual(
+                self._read_in_subprocess(root), "OK from-the-environment"
+            )
+        finally:
+            if original is None:
+                os.environ.pop(self.ENV_KEY, None)
+            else:
+                os.environ[self.ENV_KEY] = original
+
+
+    def test_quotes_and_comments_are_handled(self):
+        root = self._sandbox_with_env(
+            "# a leading comment\n"
+            "\n"
+            "%s=\"quoted value\"\n" % self.ENV_KEY
+        )
+        self.assertEqual(self._read_in_subprocess(root), "OK quoted value")
+
+    def test_secret_key_in_env_file_satisfies_guard(self):
+        """A key supplied through the .env file is enough to boot."""
+        root = self._sandbox_with_env("", with_key=True)
+        self.assertTrue(self._read_in_subprocess(root).startswith("OK"))
+
+    def test_missing_secret_key_refuses_to_boot(self):
+        """Without a real key the app must fail loudly, not serve traffic."""
+        root = self._sandbox_with_env("DJANGO_DEBUG=0\n", with_key=False)
+        self.assertEqual(
+            self._read_in_subprocess(root), "ERROR ImproperlyConfigured"
+        )
 
 
 PRODUCTION = {

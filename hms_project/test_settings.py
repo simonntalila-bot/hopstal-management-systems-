@@ -14,7 +14,16 @@ Usage:
 Never use this module to serve the application.
 """
 
-from .settings import *  # noqa: F401,F403
+import os
+
+# Must be set BEFORE importing settings: settings.py refuses to initialise with
+# the public placeholder key, and the assignment below would happen too late.
+# Not a secret, and never used outside the test suite.
+os.environ.setdefault(
+    "DJANGO_SECRET_KEY", "test-only-secret-key-not-used-outside-the-test-suite-0123456789"
+)
+
+from .settings import *  # noqa: E402,F401,F403
 
 # `from .settings import *` also executes the tail of settings.py, which
 # imports the developer's gitignored local_settings.py. That file is written

@@ -1,0 +1,68 @@
+# deploy/cpanel/public_html.htaccess
+# ==================================
+# Apache configuration for cPanel "Setup Python App".
+#
+# Copy the contents of this file into the .htaccess of the document root that
+# cPanel created for the application (usually ~/public_html/.htaccess).
+#
+# What it does:
+#   1. Hands every request that is not a real file to Passenger.
+#   2. Serves collected static files straight from disk, because the
+#      application has to be running for WhiteNoise and a request for a
+#      stylesheet should never wake the whole Python stack.
+#   3. Lets Apache serve /media/ directly when local storage is used. With S3
+#      configured this directory stays empty and Django returns bucket URLs
+#      instead, so the block costs nothing.
+#
+# Static files are also served by WhiteNoise as a fallback, so if this file is
+# wrong the site still works, just more slowly. That is deliberate: it keeps a
+# misconfigured .htaccess from taking the hospital system offline.
+#
+# NOT USED BY THE VPS DEPLOYMENT. nginx does this job there.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve existing files (static assets, uploaded media) as-is.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else is the Django application.
+    RewriteRule ^(.*)$ passenger_wsgi.py [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # The application sets these too. Repeating them here means they are
+    # present even if a request is answered by Apache rather than Django.
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>
+
+# Long cache for collected static files. WhiteNoise sets the same thing for
+# files it serves, so this only affects the Apache-served path.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css                "access plus 30 days"
+    ExpiresByType application/javascript  "access plus 30 days"
+    ExpiresByType image/png               "access plus 30 days"
+    ExpiresByType image/jpeg              "access plus 30 days"
+    ExpiresByType image/svg+xml           "access plus 30 days"
+    ExpiresByType font/woff2              "access plus 1 year"
+</IfModule>
+
+# Never execute anything uploaded by a user. A patient document or an upload
+# must never be able to run as code, whatever its extension.
+<DirectoryMatch "^.*/media/.*">
+    php_flag engine off
+    Options -ExecCGI -Indexes
+    RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .py .pl .cgi
+    AddType text/plain .php .phtml .py .pl .cgi
+</DirectoryMatch>
+
+# Let large uploads through: ultrasound images and scanned documents.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 64M
+</IfModule>

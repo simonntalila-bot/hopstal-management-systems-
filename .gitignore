@@ -1,15 +1,97 @@
+# ---------------------------------------------------------------------------
+# Secrets / environment
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!.env.example
+hms_project/local_settings.py
+local_settings.py
+*secret*.json
+*.pem
+*.key
+id_rsa*
+
+# ---------------------------------------------------------------------------
+# Python virtual environments
+# ---------------------------------------------------------------------------
 venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ---------------------------------------------------------------------------
+# Python bytecode / build artefacts
+# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
-*.sqlite3
-db.sqlite3
-.env
-*.log
-media/
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---------------------------------------------------------------------------
+# Django collected / generated
+# ---------------------------------------------------------------------------
 staticfiles/
-.DS_Store
-Thumbs.db
+media/
+*.log
+
+# ---------------------------------------------------------------------------
+# Local databases (MySQL is the production engine; SQLite is dev-only)
+# ---------------------------------------------------------------------------
+*.sqlite3
+*.sqlite
+db.sqlite3
+*.db
+
+# ---------------------------------------------------------------------------
+# Test / coverage / caches
+# ---------------------------------------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Environment / tooling
+# ---------------------------------------------------------------------------
 .idea/
 .vscode/
-*.pyc
-hms_project/local_settings.py
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# OS files
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

@@ -1,5 +1,17 @@
+# ---------------------------------------------------------------------------
+# Argentina Dispensary CDMS - Python dependencies
+# Core
+# ---------------------------------------------------------------------------
 Django>=4.2,<7.0
 PyMySQL>=1.1.0
 Pillow>=10.0.0
 qrcode[pil]>=7.4
 python-dateutil>=2.8.2
+
+# ---------------------------------------------------------------------------
+# Production serving
+#   gunicorn  - WSGI application server
+#   whitenoise - static file serving without nginx (VPS can disable later)
+# ---------------------------------------------------------------------------
+gunicorn>=21.2.0
+whitenoise>=6.6.0

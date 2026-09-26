@@ -21,6 +21,11 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def env_flag(name, default="0"):
+    """Read a boolean-ish environment variable."""
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
 # ---------------------------------------------------------------------------
 # SECURITY SETTINGS
 # ---------------------------------------------------------------------------
@@ -80,8 +85,10 @@ INSTALLED_APPS = [
 # ---------------------------------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # Uncomment after: pip install whitenoise  (useful on production)
-    # "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Serves collected static files when no web server does (temporary
+    # hosting, and the VPS before nginx is in front). Safe to keep when
+    # nginx is added - WhiteNoise steps aside for files it does not own.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -134,6 +141,46 @@ DATABASES = {
         },
     }
 }
+
+
+# ---------------------------------------------------------------------------
+# EMAIL
+# Required in production for password reset links. When DJANGO_EMAIL_BACKEND is
+# unset the console backend is used, so nothing is sent to a real mailbox.
+# ---------------------------------------------------------------------------
+_default_from = os.environ.get(
+    "DJANGO_DEFAULT_FROM_EMAIL", "Argentina Dispensary <no-reply@example.com>"
+)
+
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_flag("DJANGO_EMAIL_USE_TLS", "1")
+EMAIL_USE_SSL = env_flag("DJANGO_EMAIL_USE_SSL", "0")
+EMAIL_TIMEOUT = int(os.environ.get("DJANGO_EMAIL_TIMEOUT", "10"))
+DEFAULT_FROM_EMAIL = _default_from
+SERVER_EMAIL = _default_from
+
+
+# ---------------------------------------------------------------------------
+# HTTPS / PROXY
+# SECURE_SSL_REDIRECT stays off by default so plain-HTTP container boot and local
+# runs are not broken. Turn it on once the domain has a certificate.
+# ---------------------------------------------------------------------------
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env_flag("DJANGO_SECURE_SSL_REDIRECT", "0")
+SESSION_COOKIE_SECURE = env_flag("DJANGO_SESSION_COOKIE_SECURE", "0")
+CSRF_COOKIE_SECURE = env_flag("DJANGO_CSRF_COOKIE_SECURE", "0")
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_flag("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", "0")
+SECURE_HSTS_PRELOAD = env_flag("DJANGO_SECURE_HSTS_PRELOAD", "0")
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +242,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic on server
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# WhiteNoise serves STATIC_ROOT in production. CompressedStaticFilesStorage is
+# used instead of the manifest variant so a missing asset degrades to a normal
+# 404 rather than a template exception.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 
 # ---------------------------------------------------------------------------

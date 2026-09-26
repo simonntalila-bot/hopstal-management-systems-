@@ -16,6 +16,13 @@ Never use this module to serve the application.
 
 from .settings import *  # noqa: F401,F403
 
+# `from .settings import *` also executes the tail of settings.py, which
+# imports the developer's gitignored local_settings.py. That file is written
+# for local development (DEBUG=True, localhost hosts) and would otherwise
+# silently shape the test run, so the production value is restored here.
+# Result: the suite exercises the same DEBUG state as the live site.
+DEBUG = False
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

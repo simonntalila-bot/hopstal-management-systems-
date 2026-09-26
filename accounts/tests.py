@@ -8,8 +8,6 @@ Run with:
     python manage.py test accounts
 """
 
-from unittest import expectedFailure
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -146,16 +144,92 @@ class RoleHelperTests(TestCase):
         self.assertTrue(self.user.has_role("ULTRASOUND", "RCH"))
         self.assertFalse(self.user.has_role("RCH"))
 
-    @expectedFailure
-    def test_reception_helper_accepts_the_RECEPTION_role(self):
+
+class ReceptionRoleTests(TestCase):
+    """
+    Regression tests for User.is_reception().
+
+    Root cause of the original bug: migration 0002 introduced the combined
+    role "RECEPTION_PHARMACY". Migration 0003 split it into RECEPTION and
+    PHARMACY, and the decorator, views and templates were all updated to
+    "RECEPTION", but is_reception() kept checking the retired code and so
+    returned False for every real Reception user.
+    """
+
+    def _user_with_role(self, role):
+        user = User.objects.create_user(username=f"r_{role.lower() or 'none'}")
+        profile = StaffProfile.objects.get(user=user)
+        profile.role = role
+        profile.save()
+        return User.objects.get(pk=user.pk)
+
+    def test_reception_user_is_reception(self):
+        self.assertTrue(self._user_with_role("RECEPTION").is_reception())
+
+    def test_admin_is_reception(self):
+        """ADMIN passes every role check, matching every other is_* helper."""
+        self.assertTrue(self._user_with_role("ADMIN").is_reception())
+
+    def test_doctor_is_not_reception(self):
+        self.assertFalse(self._user_with_role("DOCTOR").is_reception())
+
+    def test_pharmacy_is_not_reception(self):
+        self.assertFalse(self._user_with_role("PHARMACY").is_reception())
+
+    def test_lab_is_not_reception(self):
+        self.assertFalse(self._user_with_role("LAB").is_reception())
+
+    def test_empty_role_is_not_reception(self):
+        self.assertFalse(self._user_with_role("").is_reception())
+
+    def test_retired_recombined_code_is_not_reachable(self):
         """
-        Documents a known inconsistency: ROLE_CHOICES uses "RECEPTION" and
-        reception_required() checks "RECEPTION", but User.is_reception()
-        looks for "RECEPTION_PHARMACY", which is not a valid role. Left
-        failing on purpose so the mismatch stays visible until it is fixed.
+        "RECEPTION_PHARMACY" was removed in migration 0003. If it ever returns
+        True, the choices and the helper have drifted apart again.
         """
-        self._as("RECEPTION")
-        self.assertTrue(self.user.is_reception())
+        user = self._user_with_role("RECEPTION")
+        self.assertNotIn("RECEPTION_PHARMACY", dict(StaffProfile.ROLE_CHOICES))
+        self.assertNotIn("RECEPTION_PHARMACY", user.role)
+
+    def test_helper_agrees_with_the_decorator(self):
+        """
+        is_reception() and reception_required() must accept the same roles,
+        otherwise a Reception user passes the helper but is bounced by the view.
+        """
+        from accounts.decorators import reception_required
+
+        for role in ("RECEPTION", "PHARMACY", "DOCTOR", "ADMIN"):
+            user = self._user_with_role(role)
+
+            allowed_by_decorator = role in ("RECEPTION", "ADMIN")
+            self.assertEqual(
+                user.is_reception(),
+                allowed_by_decorator,
+                f"role={role} helper/decorator disagree",
+            )
+        self.assertTrue(callable(reception_required))
+
+    def test_missing_profile_is_safe(self):
+        """
+        A user with no StaffProfile (deleted, or never created) must report
+        False rather than raising.
+        """
+        user = User.objects.create_user(username="r_orphan")
+        StaffProfile.objects.filter(user=user).delete()
+        user = User.objects.get(pk=user.pk)
+        self.assertFalse(user.is_reception())
+        self.assertIsNone(user.role)
+        self.assertFalse(user.has_role("RECEPTION"))
+
+    def test_inactive_profile_does_not_grant_reception(self):
+        """
+        is_active on the profile is a flag for listings; role checks stay
+        role-based, so this asserts the current deliberate behaviour.
+        """
+        user = self._user_with_role("RECEPTION")
+        user.staff_profile.is_active = False
+        user.staff_profile.save()
+        self.assertTrue(User.objects.get(pk=user.pk).is_reception())
 
 
 class AuthenticationTests(TestCase):

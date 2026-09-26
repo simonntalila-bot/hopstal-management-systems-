@@ -15,6 +15,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from django.core.management.utils import get_random_secret_key
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -298,3 +299,72 @@ class CsrfPostBehaviourTests(TestCase):
             "/accounts/login/", HTTP_HOST="not-makongatiarg.example"
         )
         self.assertEqual(response.status_code, 400)
+
+
+class DeployCheckTests(SimpleTestCase):
+    """
+    `manage.py check --deploy` must report nothing once the production
+    environment is applied.
+
+    This exists because the check is easy to run wrongly and easy to get
+    wrong results from. Two traps it guards against:
+
+      * hms_project/local_settings.py is gitignored developer configuration
+        that forces DEBUG=True. With it present, check --deploy always
+        reports security.W018 and the "0 issues" result is meaningless.
+      * The HTTPS flags default to off so the app can boot over plain HTTP
+        during setup. Forgetting to turn them on is silent: the site comes up
+        and only the deployment check notices.
+
+    So this runs the real command in the sandbox, where local_settings.py has
+    been stripped, with every production variable set.
+    """
+
+    FULL_PRODUCTION_ENV = {
+        "DJANGO_DEBUG": "0",
+        "DJANGO_ALLOWED_HOSTS": "makongatiarg.co.tz,www.makongatiarg.co.tz",
+        "DJANGO_CSRF_TRUSTED_ORIGINS": (
+            "https://makongatiarg.co.tz,https://www.makongatiarg.co.tz"
+        ),
+        "DJANGO_SECURE_SSL_REDIRECT": "1",
+        "DJANGO_SESSION_COOKIE_SECURE": "1",
+        "DJANGO_CSRF_COOKIE_SECURE": "1",
+        "DJANGO_SECURE_HSTS_SECONDS": "31536000",
+        "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS": "1",
+        "DJANGO_SECURE_HSTS_PRELOAD": "1",
+    }
+
+    def test_sandbox_has_no_local_settings(self):
+        """Precondition: otherwise the result below is meaningless."""
+        self.assertFalse(
+            os.path.exists(os.path.join(sandbox(), "hms_project", "local_settings.py"))
+        )
+
+    def test_check_deploy_is_clean_with_production_env(self):
+        root = sandbox()
+        env = {
+            k: v for k, v in os.environ.items()
+            if not k.startswith("DJANGO_") and not k.startswith("AWS_")
+        }
+        env["PYTHONPATH"] = root
+        # Generated per run, long, and never printed.
+        env["DJANGO_SECRET_KEY"] = get_random_secret_key()
+        env.update(self.FULL_PRODUCTION_ENV)
+
+        result = subprocess.run(
+            [sys.executable, "manage.py", "check", "--deploy"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=root,
+        )
+        combined = result.stdout + result.stderr
+        self.assertEqual(
+            result.returncode,
+            0,
+            "check --deploy failed:\n" + combined[-2000:],
+        )
+        self.assertNotIn(
+            "WARNINGS", combined, "deployment warnings present:\n" + combined[-2000:]
+        )
+        self.assertNotIn("security.W", combined)

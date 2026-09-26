@@ -253,50 +253,63 @@ up to 24 hours before a visitor can reach plain HTTP again.
 
 ## 8. Final deployment sequence
 
-Preparation — one time, after the VPS exists:
+Two prepared scripts do the work, so nothing is ever copied by hand. **Neither
+has been executed** — they are prepared for the day the VPS exists.
+
+### 8.1 First time only — `deploy/bootstrap.sh`
 
 ```bash
-sudo apt update && sudo apt install -y nginx mysql-server python3-venv python3-pip certbot python3-certbot-nginx
-sudo adduser --system --group --home /srv/cdms cdms
-sudo mkdir -p /srv/cdms/media /srv/cdms/staticfiles
-sudo chown -R cdms:cdms /srv/cdms
-sudo install -m 600 /dev/null /etc/cdms/cdms.env && sudo nano /etc/cdms/cdms.env
+git clone https://github.com/simonntalila-bot/hopstal-management-systems-.git
+cd hopstal-management-systems-
+sudo bash deploy/bootstrap.sh
 ```
 
-Release on each deployment:
+Installs nginx, MySQL, Python, certbot; creates the `cdms` account; clones the
+repository from Git into `/srv/cdms`; builds the virtualenv; installs
+requirements; creates `/etc/cdms/cdms.env` from `.env.example` at mode 600;
+activates the pre-commit guard; runs `collectstatic`.
+
+It deliberately **does not** run `migrate` — the database and its credentials
+must exist first. It prints the remaining manual steps when it finishes.
+
+### 8.2 Every release after that — `deploy/deploy.sh`
 
 ```bash
-cd /srv/cdms
-git pull
-./venv/bin/pip install -r requirements.txt
-sudo install -m 600 /dev/null /etc/cdms/cdms.env   # only on first release
-set -a; . /etc/cdms/cdms.env; set +a
-./venv/bin/python manage.py migrate --noinput
-./venv/bin/python manage.py collectstatic --noinput
-sudo chown -R cdms:cdms /srv/cdms/media /srv/cdms/staticfiles
-sudo nginx -t && sudo systemctl reload nginx
-sudo systemctl restart cdms
+sudo bash /srv/cdms/deploy/deploy.sh
 ```
 
-Smoke test after each release:
+`git fetch` + `reset --hard origin/main` → install requirements → `check` →
+`check --deploy` → `migrate --noinput` → `collectstatic` → fix ownership →
+restart systemd → `nginx -t` → reload → health check. It refuses to run if the
+env file still contains `<placeholder>` values, and prints the commit it
+deployed so a rollback target is always known.
 
-```bash
-curl -I http://127.0.0.1/health/            # expect 200 or 302
-sudo journalctl -u cdms -n 50 --no-pager
-```
+### 8.3 Manual steps that stay manual
 
-Order that matters:
+| # | Step | Command |
+|---|---|---|
+| 1 | Create database + least-privilege user | `sudo mysql` then `CREATE DATABASE` / `CREATE USER` / `GRANT` |
+| 2 | Fill in the env file | `sudo nano /etc/cdms/cdms.env` (mode 600) |
+| 3 | Rotate the compromised MySQL password | `ALTER USER ... IDENTIFIED BY '<new>'` |
+| 4 | Revoke the old Gmail App Password | Google account security page |
+| 5 | Install systemd unit | `sudo cp deploy/systemd/cdms.service /etc/systemd/system/` |
+| 6 | Install nginx site | `sudo cp deploy/nginx/makongatiarg.co.tz.conf /etc/nginx/sites-available/cdms` |
+| 7 | **Validate nginx — VPS only** | `sudo nginx -t` |
+| 8 | Migrate | `./venv/bin/python manage.py migrate --noinput` |
+| 9 | Start the app | `sudo systemctl enable --now cdms` |
+| 10 | DNS `A` + `CNAME` | registrar |
+| 11 | Issue the certificate | `sudo certbot --nginx -d makongatiarg.co.tz -d www.makongatiarg.co.tz --redirect ...` |
+| 12 | Enable `DJANGO_SECURE_*`, restart | `sudo systemctl restart cdms` |
+| 13 | Verify + upload test files | log in over HTTPS |
 
-1. DNS `A` + `CNAME` → wait until it resolves
-2. VPS, MySQL, app, nginx, env file
-3. `migrate` **before** nginx goes live
-4. `collectstatic` **before** enabling the `/static/` block
-5. `certbot` (needs DNS working, needs `DJANGO_SECURE_SSL_REDIRECT=0`)
-6. enable the `DJANGO_SECURE_*` flags, restart
-7. verify https, then log in and upload a test patient document and QR code
+### 8.4 Ordering that matters
 
-Before step 7, confirm the two security items still outstanding: the rotated
-MySQL password and the revoked Gmail app password.
+1. DNS must resolve before certbot can validate
+2. `migrate` **before** nginx serves traffic
+3. `collectstatic` **before** the `/static/` location is used
+4. certbot **while** `DJANGO_SECURE_SSL_REDIRECT=0`, otherwise the redirect
+   points at an endpoint with no certificate
+5. `DJANGO_SECURE_*` only after the certificate is live
 
 ---
 
@@ -308,9 +321,14 @@ MySQL password and the revoked Gmail app password.
 | `deploy/nginx/makongatiarg.co.tz.conf` | nginx site config |
 | `deploy/gunicorn_config.py` | gunicorn config |
 | `deploy/systemd/cdms.service` | systemd unit |
+| `deploy/bootstrap.sh` | one-time VPS preparation (idempotent, no secrets) |
+| `deploy/deploy.sh` | per-release deploy from Git (refuses placeholder env) |
 | `docs/DEPLOYMENT.md` | this document |
 | `docs/MEDIA_STORAGE.md` | S3 storage variables |
 | `docs/DATABASE_BACKUP.md` | backup strategy and scripts |
+| `scripts/backup_mysql.sh` | encrypted scheduled backup |
+| `scripts/restore_mysql.sh` | restore drill into a scratch database |
+| `hms_project/tests.py` | automated checks for host, CSRF and storage settings |
 
 ## Open items
 
@@ -318,6 +336,28 @@ MySQL password and the revoked Gmail app password.
 - [ ] Does the VPS have IPv6? (decides `AAAA`)
 - [ ] MySQL password rotation
 - [ ] Gmail app-password revocation
-- [ ] `User.is_reception()` role mismatch (fails for Reception users)
 - [ ] Run `migrate` against the real database
 - [ ] Decide: S3 bucket or persistent disk for patient media
+- [ ] Confirm the backup retention period
+- [x] ~~`User.is_reception()` role mismatch~~ — fixed; the helper checked
+      `RECEPTION_PHARMACY`, retired by migration `0003`
+
+## Two related bugs found but deliberately not changed
+
+Both are real, and both are outside the scope of the role fix. Flagging rather
+than silently changing, because both alter what a Reception user sees.
+
+1. **`dashboard/templates/dashboard/home.html:8` still checks
+   `role == "RECEPTIONIST"`.** That code was replaced by `RECEPTION` back in
+   migration `0002`, so the comparison can never be true and that dashboard
+   block never renders for a Reception user. Fixing it would make a
+   previously-unreachable template branch start rendering content that has
+   never been exercised. Needs a deliberate decision.
+
+2. **`User.is_reception()` now includes `ADMIN`, not `False`.** Every other
+   `is_*()` helper, `reception_required()`, `dashboard/views.py:1277` and
+   `patients/views.py:137` all treat `ADMIN` as passing. Returning `False`
+   for `ADMIN` would make this one helper disagree with the decorators that
+   actually guard the views, which is the original class of bug this fix
+   removed. `accounts/tests.py::ReceptionRoleTests` documents and enforces
+   the agreement in both directions.

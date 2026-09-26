@@ -5,13 +5,18 @@ Custom User + StaffProfile for Argentina Dispensary (CDMS).
 
 Roles are deliberately lean as confirmed by the client:
 - ADMIN (2 accounts)
-- RECEPTION_PHARMACY (front desk + pharmacy – same person)
+- RECEPTION (front desk)
+- PHARMACY
 - DOCTOR
 - LAB
 - ULTRASOUND
 - INJECTION
 - RCH
 - LABOUR_WARD
+
+Reception and Pharmacy are separate roles; migration 0003 split the original
+combined RECEPTION_PHARMACY choice. Every is_*() helper and every
+role_required() decorator treats ADMIN as passing all role checks.
 
 No separate Nurse role. Vitals are handled by Reception.
 """
@@ -64,8 +69,8 @@ class User(AbstractUser):
         return self.has_role("ADMIN")
 
     def is_reception(self):
-        """Reception + Pharmacy combined role."""
-        return self.has_role("RECEPTION_PHARMACY", "ADMIN")
+        """Reception (front desk). ADMIN passes every role check by design."""
+        return self.has_role("RECEPTION", "ADMIN")
 
     def is_doctor(self):
         return self.has_role("DOCTOR", "ADMIN")

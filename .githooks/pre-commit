@@ -5,9 +5,10 @@
 # Blocks accidental commits of local configuration and credentials.
 # Enabled for every clone via:  git config core.hooksPath .githooks
 #
-# Two checks:
-#   1. deny-listed paths  (.env, local_settings.py, keys, sockets, dumps)
-#   2. staged content     (hard-coded credential-shaped assignments)
+# Three checks:
+#   1. deny-listed paths   (.env*, local_settings.py, keys, certs, databases)
+#   2. credential literals (quoted, unquoted, YAML, KEY=value styles)
+#   3. env-var usage is allow-listed, so os.environ.get(...) still commits
 #
 # False positives are possible; in that case bypass deliberately with
 #   git commit --no-verify
@@ -17,29 +18,45 @@ set -eu
 
 fail() {
     printf '\n[pre-commit] BLOCKED: %s\n\n' "$1" >&2
-    printf 'If this is a false positive, re-run with: git commit --no-verify\n\n' >&2
+    printf 'Reviewed the items above. If this is a false positive, re-run with:\n' >&2
+    printf '  git commit --no-verify\n\n' >&2
     exit 1
 }
 
 # --- 1. deny-listed paths ---------------------------------------------------
-denied=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -Ei '(^|/)(\.env($|\.)|local_settings\.py|.*\.(pem|key|p12|pfx|sqlite3?|db|dump|log)|id_rsa.*)$' || true)
+denied=$(git diff --cached --name-only --diff-filter=ACMR | grep -Ei \
+    '(^|/)(\.env([^/]*)?|local_settings\.py|.*\.(pem|key|p12|pfx|jks|keystore|asc|gpg)|id_rsa[^/]*|id_ed25519[^/]*|credentials?[^/]*\.json|secrets?\.ya?ml|.*\.(sqlite3?|db|dump))$' \
+    || true)
 
 if [ -n "$denied" ]; then
-    fail "local/secret files are staged:
+    fail "local config / secret files are staged:
 $(printf '%s\n' "$denied" | sed 's/^/  - /')"
 fi
 
-# --- 2. credential-shaped literals in staged content ------------------------
-patch=$(git diff --cached -U0 | grep '^+' | grep -v '^+++' || true)
+# --- 2. credential literals in staged content --------------------------------
+# Added lines only, comments stripped.
+added=$(git diff --cached -U0 --no-color | grep '^+' | grep -v '^+++' | \
+    sed -e 's/^+//' -e 's/^[[:space:]]*#.*//' -e 's/^[[:space:]]*;.*//' || true)
 
-matches=$(printf '%s\n' "$patch" | grep -Ei \
-    "(password|passwd|secret_key|api_?key|access_?token|private_?key)[[:space:]]*[=:][[:space:]]*[\"'][^\"']{4,}[\"']" \
-    | grep -Evi "os\.environ|getenv|environ\.get|import|settings\.|DB_PASSWORD\"|REDACTED|\*\*\*" || true)
+# Keyword, optional closing quote, separator, then a literal value.
+# Built with double quotes so a single quote needs no escaping.
+q="[\"']"
+keyword="(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|private[_-]?key|client[_-]?secret|credential)"
+bare="[A-Za-z0-9_@!$%^&*+=./:-]{4,}"
+quoted="$q[^\"']{4,}$q"
 
-if [ -n "$matches" ]; then
+pattern="$keyword[A-Za-z0-9_]*[\"']?[[:space:]]*[:=][[:space:]]*($quoted|$bare)"
+envstyle="^[A-Z][A-Z0-9_]*(PASSWORD|PASSWD|PWD|SECRET|API_?KEY|TOKEN|PRIVATE_?KEY|CREDENTIALS?)[A-Z0-9_]*="
+
+# Allow-list: env-var reads, placeholders, validators, settings indirection.
+allow='os\.environ|getenv|environ\.get|settings\.|^[[:space:]]*(import|from) |REDACTED|REMOVED-ROTATE|\*\*\*|get_random_secret_key|AUTH_PASSWORD_VALIDATORS|password_validation|DB_PASSWORD"'
+
+hits=$(printf '%s\n' "$added" | grep -Ei "$pattern" | grep -Eiv "$allow" || true)
+hits2=$(printf '%s\n' "$added" | grep -Ei "$envstyle" | grep -Eiv "$allow" || true)
+
+if [ -n "$hits" ] || [ -n "$hits2" ]; then
     fail "possible hard-coded credential in staged lines:
-$(printf '%s\n' "$matches" | cut -c1-120 | sed 's/^/  - /')"
+$(printf '%s\n%s\n' "$hits" "$hits2" | grep -v '^[[:space:]]*$' | cut -c1-120 | sed 's/^/  - /')"
 fi
 
 exit 0

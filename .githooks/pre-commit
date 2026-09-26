@@ -1,0 +1,45 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# CDMS pre-commit guard
+#
+# Blocks accidental commits of local configuration and credentials.
+# Enabled for every clone via:  git config core.hooksPath .githooks
+#
+# Two checks:
+#   1. deny-listed paths  (.env, local_settings.py, keys, sockets, dumps)
+#   2. staged content     (hard-coded credential-shaped assignments)
+#
+# False positives are possible; in that case bypass deliberately with
+#   git commit --no-verify
+# and fix the value properly rather than committing it.
+# ---------------------------------------------------------------------------
+set -eu
+
+fail() {
+    printf '\n[pre-commit] BLOCKED: %s\n\n' "$1" >&2
+    printf 'If this is a false positive, re-run with: git commit --no-verify\n\n' >&2
+    exit 1
+}
+
+# --- 1. deny-listed paths ---------------------------------------------------
+denied=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -Ei '(^|/)(\.env($|\.)|local_settings\.py|.*\.(pem|key|p12|pfx|sqlite3?|db|dump|log)|id_rsa.*)$' || true)
+
+if [ -n "$denied" ]; then
+    fail "local/secret files are staged:
+$(printf '%s\n' "$denied" | sed 's/^/  - /')"
+fi
+
+# --- 2. credential-shaped literals in staged content ------------------------
+patch=$(git diff --cached -U0 | grep '^+' | grep -v '^+++' || true)
+
+matches=$(printf '%s\n' "$patch" | grep -Ei \
+    "(password|passwd|secret_key|api_?key|access_?token|private_?key)[[:space:]]*[=:][[:space:]]*[\"'][^\"']{4,}[\"']" \
+    | grep -Evi "os\.environ|getenv|environ\.get|import|settings\.|DB_PASSWORD\"|REDACTED|\*\*\*" || true)
+
+if [ -n "$matches" ]; then
+    fail "possible hard-coded credential in staged lines:
+$(printf '%s\n' "$matches" | cut -c1-120 | sed 's/^/  - /')"
+fi
+
+exit 0

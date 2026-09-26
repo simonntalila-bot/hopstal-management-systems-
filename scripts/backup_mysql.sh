@@ -21,10 +21,13 @@
 #   BACKUP_ENCRYPT_PASSPHRASE_FILE
 #                          path to a chmod-600 file holding the passphrase
 #                          used to encrypt the dump
-#   BACKUP_RETENTION_DAYS  delete dumps older than this, default 30
+#   BACKUP_RETENTION_DAYS  local rolling window in days, default 30. The
+#                          12-week and 12-month tiers are enforced by the
+#                          offsite bucket lifecycle rule, not here.
+#   BACKUP_DRY_RUN          1 = print the prune plan and delete nothing
 #   BACKUP_PREFIX          filename prefix, default cdms
 #
-# Example crontab (daily 02:15, keep 30 days):
+# Example crontab (daily 02:15, local window 30 days):
 #   15 2 * * * . /etc/cdms/backup.env && /opt/cdms/scripts/backup_mysql.sh \
 #       >> /var/log/cdms-backup.log 2>&1
 #
@@ -88,9 +91,52 @@ SIZE="$(du -h "$DEST" | cut -f1)"
 log "wrote ${DEST} (${SIZE})"
 
 # --- retention --------------------------------------------------------------
+#
+# Policy (docs/DATABASE_BACKUP.md section 3), grandfathered/rotated offsite:
+#
+#   daily   30 days      bucket lifecycle
+#   weekly  12 weeks     bucket lifecycle
+#   monthly 12 months    bucket lifecycle
+#
+# This script only prunes the LOCAL rolling window. The long-term tiers live in
+# the offsite bucket, because keeping 12 months of dumps on the VPS disk is not
+# viable and a lost VPS must not mean lost history. BACKUP_RETENTION_DAYS is
+# therefore the local window and is intentionally not 12 months.
+#
+# Safety: deletion is opt-in-previewable, pattern-restricted, and refuses to run
+# against a directory that does not look like a backup directory. Set
+# BACKUP_DRY_RUN=1 to print the plan without deleting anything.
 KEEP="${BACKUP_RETENTION_DAYS:-30}"
-log "pruning dumps older than ${KEEP} days"
-find "$BACKUP_DIR" -maxdepth 1 -type f -name "${BACKUP_PREFIX:-cdms}-*.sql.gz" \
-  -mtime "+${KEEP}" -print -delete
+DRY_RUN="${BACKUP_DRY_RUN:-0}"
+PATTERN="${BACKUP_PREFIX:-cdms}-${MYSQL_DATABASE}-*.sql.gz"
+
+case "$KEEP" in
+  ''|*[!0-9]*) die "BACKUP_RETENTION_DAYS must be a whole number, got '${KEEP}'" ;;
+esac
+[ "$KEEP" -ge 1 ] || die "BACKUP_RETENTION_DAYS must be at least 1"
+
+# Refuse to prune if the directory is not plausibly a backup directory. Without
+# this, a mistyped BACKUP_DIR could delete unrelated files matching the glob.
+existing="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name "$PATTERN" | wc -l)"
+if [ "$existing" -eq 0 ]; then
+  log "no existing dumps match '${PATTERN}'; skipping prune entirely"
+  log "done"
+  exit 0
+fi
+
+log "pruning local dumps older than ${KEEP} days (${existing} matching files present)"
+if [ "$DRY_RUN" = "1" ]; then
+  log "DRY RUN: listing what would be deleted, deleting nothing"
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name "$PATTERN" -mtime "+${KEEP}" \
+    -print
+  log "dry run complete; re-run with BACKUP_DRY_RUN=0 to apply"
+  log "done"
+  exit 0
+fi
+
+# -mtime keeps the most recent KEEP days untouched regardless of anything else.
+find "$BACKUP_DIR" -maxdepth 1 -type f -name "$PATTERN" -mtime "+${KEEP}" \
+  -print -delete
+log "local prune complete; offsite tiering is the bucket lifecycle rule's job"
 
 log "done"

@@ -64,17 +64,62 @@ in addition to the provider's own backups.
 
 ## 3. Retention
 
-| Tier | Keep | Where |
-|---|---|---|
-| Daily | 30 days | Offsite bucket |
-| Weekly | 12 weeks | Offsite bucket |
-| Monthly | 7 years | Offsite bucket, cold storage |
+**Agreed baseline policy:**
 
-Seven years matches typical clinical-record retention guidance. Confirm the
-exact figure with the hospital before the first production backup.
+| Tier | Keep | Enforced by | Approx. size |
+|---|---|---|---|
+| Daily | 30 days | bucket lifecycle | 30 dumps |
+| Weekly | 12 weeks | bucket lifecycle | 12 dumps |
+| Monthly | 12 months | bucket lifecycle | 12 dumps |
 
-`BACKUP_RETENTION_DAYS` only prunes dumps on the local host. Retention for the
-offsite copy is enforced by the bucket lifecycle rule.
+This is a production baseline and can be changed to match storage cost and the
+hospital's requirements. It is a **technical** recovery policy, not a legal one:
+some clinical-record regimes require longer than 12 months. Confirm the legal
+figure with the hospital before the first production backup — that is a
+separate decision from this baseline.
+
+### Where each tier is enforced
+
+`scripts/backup_mysql.sh` prunes only the **local** window
+(`BACKUP_RETENTION_DAYS`, default 30 days). It deliberately does not keep 12
+months on the VPS: that disk cannot hold it, and a replaced or lost VPS must not
+mean lost history. The weekly and monthly tiers are the offsite bucket's job.
+
+Preview the local prune before letting cron apply it:
+
+```bash
+BACKUP_DRY_RUN=1 scripts/backup_mysql.sh     # lists, deletes nothing
+```
+
+The script refuses to prune at all if no file matches its own naming pattern, so
+a mistyped `BACKUP_DIR` cannot delete unrelated files.
+
+### Bucket lifecycle rule for the 30 / 12 / 12 tiers
+
+The daily backup uploads one object per run. The bucket lifecycle rotates the
+tiers automatically: objects are deleted at 30 days, moved to infrequent access
+at 30 days and kept until 365, giving the daily, weekly-equivalent and
+monthly-equivalent history without a second cron job.
+
+```json
+{
+  "Rules": [
+    {
+      "ID": "cdms-30-12-12",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "Transitions": [
+        { "Days": 30, "StorageClass": "STANDARD_IA" }
+      ],
+      "Expiration": { "Days": 365 }
+    }
+  ]
+}
+```
+
+Tune `Days` on the transition and expiration to change the policy in one place.
+Check the provider's naming for the infrequent-access class; non-AWS
+S3-compatible providers use different storage-class strings.
 
 ---
 
@@ -136,10 +181,14 @@ database password.
 ## Before go-live checklist
 
 - [ ] Automated daily backup running and a first dump verified
+- [ ] `BACKUP_DRY_RUN=1` reviewed before cron prune is enabled
 - [ ] Dump opens and restores into a scratch database
-- [ ] Offsite bucket receiving copies, retention rule configured
+- [ ] Offsite bucket receiving copies
+- [ ] Bucket lifecycle rule applied (30 days / 365 days) per section 3
 - [ ] Public access blocked on the bucket
 - [ ] Backup user is read-only, not the app user
 - [ ] Secrets stored outside the repo, `chmod 600`
 - [ ] Restore test scheduled monthly with a written log
-- [ ] Hospital sign-off on the retention period
+- [x] Technical baseline agreed: daily 30 / weekly 12 / monthly 12
+- [ ] Hospital sign-off: is 12 months enough, or does the clinical regime
+      require longer? (section 3)

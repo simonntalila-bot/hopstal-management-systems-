@@ -76,4 +76,24 @@ if [ -n "$hits" ] || [ -n "$hits2" ]; then
 $(printf '%s\n%s\n' "$hits" "$hits2" | grep -v '^[[:space:]]*$' | cut -c1-120 | sed 's/^/  - /')"
 fi
 
+# --- 3. executables must stay executable in the index ------------------------
+#
+# Why this exists: a Windows working tree has no execute bit, so `git add`
+# (and any `git reset`) can quietly drop a tracked script from 100755 to
+# 100644. That is invisible locally and only breaks on the VPS. For
+# .githooks/pre-commit it is worse than cosmetic: git SILENTLY IGNORES a
+# non-executable hook, so the credential guard above would stop running on
+# the server while still looking correctly configured.
+#
+# This warns rather than blocks, because chmod-ing the index is a deliberate
+# step the developer may already be handling. The fix is:
+#     git update-index --chmod=+x <path>
+non_exec=$(git ls-files -s -- '*.sh' '.githooks/*' 2>/dev/null \
+  | awk '$1 != "100755" { print "    " $4 " (" $1 ")" }' || true)
+
+if [ -n "$non_exec" ]; then
+    printf '\n[pre-commit] WARNING: these scripts are not executable in the index:\n%s\n' "$non_exec" >&2
+    printf '  They will not run on the VPS. Fix with:\n    git update-index --chmod=+x <path>\n\n' >&2
+fi
+
 exit 0

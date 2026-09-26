@@ -1,5 +1,9 @@
 # Media Storage — Argentina Dispensary CDMS
 
+**Decision: S3-compatible object storage for production.** Patient documents
+must not be lost when the VPS is replaced, so uploads live outside the server.
+The local filesystem backend is kept for development only.
+
 Uploads handled by this setting:
 
 | What | Field |

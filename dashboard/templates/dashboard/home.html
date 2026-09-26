@@ -5,7 +5,22 @@
 
 {% block content %}
 
-{% if role == "RECEPTIONIST" or role == "ADMIN" %}
+{% comment %}
+    Role values must match StaffProfile.ROLE_CHOICES in accounts/models.py.
+    The reception branch used to compare against the old combined reception
+    name from migration 0001, which migration 0002 renamed. Comparing against
+    a value the system can never store makes the branch unreachable.
+
+    NOTE: the NURSE and PHARMACIST branches below are also stale. They are
+    left as-is pending a decision on what they should map to, and are
+    recorded in accounts.tests.DashboardTemplateRoleTests.
+
+    dashboard.views.home() redirects every role listed in its ROLE_HOME map to
+    a dedicated *-home template, so this file only renders as a fallback for a
+    user whose role is unset or unmapped. The real Reception dashboard is
+    dashboard/reception_home.html via dashboard:reception_home.
+{% endcomment %}
+{% if role == "RECEPTION" or role == "ADMIN" %}
 
 <!-- Welcome -->
 <div class="mb-4">

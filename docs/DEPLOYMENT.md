@@ -337,27 +337,41 @@ deployed so a rollback target is always known.
 - [ ] MySQL password rotation
 - [ ] Gmail app-password revocation
 - [ ] Run `migrate` against the real database
-- [ ] Decide: S3 bucket or persistent disk for patient media
-- [ ] Confirm the backup retention period
+- [x] ~~Decide S3 bucket or persistent disk~~ — **S3-compatible object storage
+      chosen**; see `docs/MEDIA_STORAGE.md`
+- [x] ~~Confirm the backup retention period~~ — baseline agreed: daily 30 /
+      weekly 12 / monthly 12; see `docs/DATABASE_BACKUP.md` §3
 - [x] ~~`User.is_reception()` role mismatch~~ — fixed; the helper checked
       `RECEPTION_PHARMACY`, retired by migration `0003`
+- [x] ~~`dashboard/home.html` checks the retired `RECEPTIONIST`~~ — fixed
+- [ ] Decide what the stale `NURSE` / `PHARMACIST` branches in
+      `dashboard/home.html` should map to (see below)
+- [ ] Hospital sign-off: is 12 months of backup history enough, or does the
+      clinical regime require longer?
 
-## Two related bugs found but deliberately not changed
+## Role-mapping decisions still open
 
-Both are real, and both are outside the scope of the role fix. Flagging rather
-than silently changing, because both alter what a Reception user sees.
+**1. `User.is_reception()` returns `True` for `ADMIN`, not `False`.**
+Every other `is_*()` helper, `reception_required()`,
+`dashboard/views.py:1277` and `patients/views.py:137` all treat `ADMIN` as
+passing. Returning `False` for `ADMIN` would make this one helper disagree
+with the decorators that actually guard the views — the same class of bug the
+`RECEPTION_PHARMACY` fix removed. `accounts/tests.py::ReceptionRoleTests`
+enforces the agreement in both directions. Changing this needs a decision, not
+a one-line edit, because it would also mean revisiting the decorators.
 
-1. **`dashboard/templates/dashboard/home.html:8` still checks
-   `role == "RECEPTIONIST"`.** That code was replaced by `RECEPTION` back in
-   migration `0002`, so the comparison can never be true and that dashboard
-   block never renders for a Reception user. Fixing it would make a
-   previously-unreachable template branch start rendering content that has
-   never been exercised. Needs a deliberate decision.
+**2. `dashboard/home.html` has two more dead branches: `NURSE` and
+`PHARMACIST`.** Both were removed from `ROLE_CHOICES` in migration `0002`
+(`PHARMACIST` → `PHARMACY`; there is no Nurse role at all, vitals are handled
+by Reception). They are recorded in
+`accounts.tests.DashboardTemplateRoleTests.KNOWN_LEGACY_ROLES` rather than
+renamed, because the mapping is a product decision: `PHARMACIST` → `PHARMACY`
+is mechanical, but `NURSE` has no obvious successor among the current roles.
 
-2. **`User.is_reception()` now includes `ADMIN`, not `False`.** Every other
-   `is_*()` helper, `reception_required()`, `dashboard/views.py:1277` and
-   `patients/views.py:137` all treat `ADMIN` as passing. Returning `False`
-   for `ADMIN` would make this one helper disagree with the decorators that
-   actually guard the views, which is the original class of bug this fix
-   removed. `accounts/tests.py::ReceptionRoleTests` documents and enforces
-   the agreement in both directions.
+Context worth knowing before deciding: `dashboard.views.home()` already
+redirects every role in its `ROLE_HOME` map to a dedicated `*-home` template,
+so `home.html` only renders for a user whose role is unset or unmapped. The
+live dashboards are `dashboard/reception_home.html` and friends. These stale
+branches in `home.html` are therefore invisible in production regardless —
+fixing them changes nothing a user sees. `DashboardTemplateRoleTests` will
+fail if a *new* unknown role ever appears, so the drift cannot spread.

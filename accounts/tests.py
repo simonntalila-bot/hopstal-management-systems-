@@ -8,14 +8,20 @@ Run with:
     python manage.py test accounts
 """
 
+from pathlib import Path
+import re
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.template.loader import render_to_string
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from accounts.decorators import doctor_required, role_required
 from accounts.models import StaffProfile
 
 User = get_user_model()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class UserModelTests(TestCase):
@@ -230,6 +236,129 @@ class ReceptionRoleTests(TestCase):
         user.staff_profile.is_active = False
         user.staff_profile.save()
         self.assertTrue(User.objects.get(pk=user.pk).is_reception())
+
+
+class DashboardTemplateRoleTests(TestCase):
+    """
+    dashboard/templates/dashboard/home.html used to branch on
+    `role == "RECEPTIONIST"`. That value was introduced by migration 0001 and
+    removed in migration 0002, which renamed it "RECEPTION". The comparison
+    could therefore never be true and the Reception branch was unreachable.
+
+    These tests pin the role strings in that template to ROLE_CHOICES so the
+    same drift cannot come back silently, and prove the branch renders.
+    """
+
+    TEMPLATE = BASE_DIR / "dashboard" / "templates" / "dashboard" / "home.html"
+    VALID_ROLES = {code for code, _ in StaffProfile.ROLE_CHOICES}
+
+    # Compared in dashboard/home.html but absent from ROLE_CHOICES, so those
+    # branches can never render. Recorded rather than fixed: mapping them is a
+    # product decision, not a mechanical rename. See docs/DEPLOYMENT.md.
+    KNOWN_LEGACY_ROLES = {
+        "NURSE": "migration 0001 role; accounts/models.py states there is no "
+                 "Nurse role and vitals are handled by Reception",
+        "PHARMACIST": "renamed to PHARMACY in migration 0002",
+    }
+
+    def _template_text(self):
+        return self.TEMPLATE.read_text(encoding="utf-8")
+
+    def test_retired_receptionist_value_is_gone(self):
+        """The obsolete comparison must not reappear."""
+        self.assertNotIn(
+            "RECEPTIONIST",
+            self._template_text(),
+            "dashboard/home.html still references the retired RECEPTIONIST role",
+        )
+
+    def test_every_role_in_the_template_is_a_real_role(self):
+        """
+        Guards the whole class of bug, not just this one occurrence: any role
+        string compared in the template must exist in ROLE_CHOICES. A stale
+        comparison silently produces a branch that never renders.
+
+        The two already-known legacy branches are allowlisted by name, so any
+        NEW unknown role still fails here. Deleting an entry from
+        KNOWN_LEGACY_ROLES is the signal that it was actually fixed.
+        """
+        compared = set(re.findall(r'role\s*==\s*"([A-Z_]+)"', self._template_text()))
+        self.assertTrue(compared, "no role comparisons found; template changed shape")
+        unknown = compared - self.VALID_ROLES
+        self.assertEqual(
+            unknown,
+            set(self.KNOWN_LEGACY_ROLES),
+            "dashboard/home.html compares against roles that are neither valid "
+            "nor recorded as KNOWN_LEGACY_ROLES: %s" % sorted(unknown),
+        )
+
+    def test_known_legacy_roles_are_still_genuinely_dead(self):
+        """
+        If one of these ever becomes a real role, the allowlist above is stale
+        and the branch should be wired up rather than tolerated.
+        """
+        for role in self.KNOWN_LEGACY_ROLES:
+            self.assertNotIn(role, self.VALID_ROLES)
+
+    def test_reception_branch_renders_for_a_reception_user(self):
+        """
+        Renders the Reception branch of the fallback template directly and
+        checks the content unique to that branch appears.
+        """
+        user = User.objects.create_user(username="t_reception")
+        user.staff_profile.role = "RECEPTION"
+        user.staff_profile.save()
+        html = render_to_string(
+            "dashboard/home.html",
+            {
+                "role": "RECEPTION",
+                "role_display": "Reception",
+                "display_name": "Reception Test",
+                "total_patients": 7,
+                "registered_today": 2,
+                "in_queue": 1,
+                "appointments_today": 3,
+            },
+            request=RequestFactory().get("/dashboard/"),
+        )
+        self.assertIn("Reception Test", html)
+        # Markers that only exist inside the Reception branch.
+        self.assertIn("Total Patients", html)
+        self.assertIn("Registered Today", html)
+        # The generic fallback must NOT be what a Reception user gets.
+        self.assertNotIn("Your role-specific dashboard will appear here", html)
+
+    def test_non_reception_roles_do_not_get_the_reception_branch(self):
+        """A LAB user rendered from the same template must not see it."""
+        html = render_to_string(
+            "dashboard/home.html",
+            {
+                "role": "LAB",
+                "role_display": "Laboratory",
+                "display_name": "Lab Test",
+            },
+            request=RequestFactory().get("/dashboard/"),
+        )
+        self.assertNotIn("Total Patients", html)
+
+    def test_reception_user_is_redirected_to_the_reception_dashboard(self):
+        """
+        Documents why the fix above has no visible effect in production:
+        dashboard.views.home() redirects every role in its ROLE_HOME map to a
+        dedicated template, so home.html is only a fallback for an unmapped
+        role. The real Reception dashboard is dashboard:reception_home.
+        """
+        user = User.objects.create_user(
+            username="t_redirect", password="TestPass123!"
+        )
+        user.staff_profile.role = "RECEPTION"
+        user.staff_profile.save()
+        self.client.login(username="t_redirect", password="TestPass123!")
+        response = self.client.get(reverse("dashboard:home"))
+        self.assertRedirects(
+            response, reverse("dashboard:reception_home"), fetch_redirect_response=False
+        )
+        self.assertTemplateNotUsed(response, "dashboard/home.html")
 
 
 class AuthenticationTests(TestCase):

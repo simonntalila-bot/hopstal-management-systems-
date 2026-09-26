@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# systemd unit for the CDMS gunicorn service
+#
+# Install:
+#   sudo cp deploy/systemd/cdms.service /etc/systemd/system/cdms.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cdms
+#
+# The environment file holds the secrets and must stay outside the repository:
+#   sudo install -m 600 /dev/null /etc/cdms/cdms.env
+#   sudo nano /etc/cdms/cdms.env      # copy values from .env.example
+# ---------------------------------------------------------------------------
+[Unit]
+Description=Argentina Dispensary CDMS (gunicorn)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+# Run as a dedicated unprivileged account, never root.
+User=cdms
+Group=cdms
+WorkingDirectory=/srv/cdms
+
+# DJANGO_SETTINGS_MODULE is fixed here; every value it needs comes from the
+# env file below, which is never committed.
+Environment=DJANGO_SETTINGS_MODULE=hms_project.settings
+EnvironmentFile=/etc/cdms/cdms.env
+
+ExecStart=/srv/cdms/venv/bin/gunicorn -c deploy/gunicorn_config.py hms_project.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+
+Restart=on-failure
+RestartSec=5
+# Give a worker time to finish in-flight requests on deploy.
+TimeoutStopSec=45
+KillSignal=SIGQUIT
+
+# --- Hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/cdms/media /srv/cdms/staticfiles
+# Socket directory must be writable by the service account.
+RuntimeDirectory=cdms
+RuntimeDirectoryMode=0750
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cdms
+
+[Install]
+WantedBy=multi-user.target

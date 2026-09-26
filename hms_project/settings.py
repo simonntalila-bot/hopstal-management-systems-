@@ -26,6 +26,25 @@ def env_flag(name, default="0"):
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
 
 
+def env_list(name, default="", normalize_origin=False):
+    """
+    Read a comma-separated environment variable into a list.
+
+    With normalize_origin=True each entry is forced to carry a scheme, because
+    Django rejects CSRF_TRUSTED_ORIGINS entries that start with anything other
+    than http:// or https://. A bare hostname is assumed to be https, which
+    fails closed instead of silently disabling the check.
+    """
+    items = [item.strip() for item in os.environ.get(name, default).split(",")]
+    items = [item for item in items if item]
+    if not normalize_origin:
+        return items
+    return [
+        item if "://" in item else "https://" + item
+        for item in items
+    ]
+
+
 # ---------------------------------------------------------------------------
 # SECURITY SETTINGS
 # ---------------------------------------------------------------------------
@@ -40,14 +59,20 @@ SECRET_KEY = os.environ.get(
 # Default = False (safe for production)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0").lower() in ("1", "true", "yes")
 
-ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.environ.get(
-        "DJANGO_ALLOWED_HOSTS",
-        "localhost,127.0.0.1",
-    ).split(",")
-    if h.strip()
-]
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+
+# Origins allowed to submit CSRF-protected POSTs. The scheme is required by
+# Django, so entries are normalised to https when omitted.
+#
+# Production value for makongatiarg.co.tz:
+#   DJANGO_CSRF_TRUSTED_ORIGINS=https://makongatiarg.co.tz,https://www.makongatiarg.co.tz
+#
+# CSRF_TRUSTED_ORIGINS alone is not sufficient: the request must also arrive
+# over HTTPS (DJANGO_CSRF_COOKIE_SECURE=1) with the correct
+# X-Forwarded-Proto header from nginx (SECURE_PROXY_SSL_HEADER below).
+CSRF_TRUSTED_ORIGINS = env_list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS", "", normalize_origin=True
+)
 
 
 # ---------------------------------------------------------------------------

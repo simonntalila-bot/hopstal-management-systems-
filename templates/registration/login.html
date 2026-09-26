@@ -125,6 +125,23 @@
             background: linear-gradient(135deg, #0b5ed7, #084298);
         }
 
+        .forgot-link {
+            display: block;
+            text-align: right;
+            margin: -0.35rem 0 1rem;
+            font-size: 0.85rem;
+        }
+
+        .forgot-link a {
+            color: #0d6efd;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .forgot-link a:hover {
+            text-decoration: underline;
+        }
+
         .footer-note {
             text-align: center;
             margin-top: 1.25rem;
@@ -180,7 +197,7 @@
                 </div>
             </div>
 
-            <div class="mb-3">
+            <div class="mb-2">
                 <label class="form-label" for="id_password">Password</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-lock"></i></span>
@@ -188,6 +205,10 @@
                            class="form-control" placeholder="Enter password"
                            autocomplete="current-password" required>
                 </div>
+            </div>
+
+            <div class="forgot-link">
+                <a href="{% url 'password_reset' %}">Forgot password?</a>
             </div>
 
             {% if next %}

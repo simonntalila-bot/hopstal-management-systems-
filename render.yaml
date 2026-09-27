@@ -30,8 +30,29 @@ services:
     plan: free
     region: frankfurt
 
-    # Pinned so Render cannot silently move the demo onto a Python that
-    # requirements.txt was never tested against. Matches runtime.txt.
+    # Explicit, though it is already the default. It stops the service being
+    # created with a subdirectory as its root, which would hide manage.py and
+    # make every command below fail with "No such file or directory".
+    rootDir: .
+
+    # Deploy the newest commit on main without anyone pressing the button, so
+    # a fix pushed to GitHub is live.
+    autoDeployTrigger: commit
+
+    # Python is pinned in three places on purpose, because Render reads
+    # different ones in different situations:
+    #
+    #   .python-version   read from the repository for EVERY Python service,
+    #                     including one created by hand instead of a blueprint
+    #   runtime.txt       same, the older Heroku-style spelling
+    #   PYTHON_VERSION    below, applied when this file is the source of truth
+    #
+    # Without the first of these, Render falls back to its own default, which
+    # is currently Python 3.14, and the build log says:
+    #     Using Python version 3.14.3 (default)
+    # That line means the pin was not picked up, not that the pin is wrong.
+    # requirements.txt is left unpinned to <3.13, so a fallback is a silent
+    # change of interpreter rather than a build that fails loudly.
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.10"
@@ -87,6 +108,11 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
+    # Build step only. It installs the dependencies and collects static files.
+    # It must NOT run migrations or seed data: a build can be started and
+    # abandoned, and a database that is half-migrated is harder to reason
+    # about than one that is merely empty. Schema and demo data belong in
+    # releaseCommand below, which Render runs once, after a build succeeds.
     buildCommand: >-
       pip install --no-cache-dir -r requirements.txt
       && python manage.py collectstatic --no-input
@@ -98,6 +124,10 @@ services:
     # --force-in-production is passed, which is deliberately NOT passed here:
     # if the database is ever misconfigured to MySQL, this command fails loudly
     # instead of writing invented patient records into the real database.
+    #
+    # Note the hyphen: --no-input, not --noinput. Django does not accept the
+    # shorter spelling, and it fails the step instead of waiting for a
+    # prompt that will never come.
     releaseCommand: >-
       python manage.py migrate --no-input
       && python manage.py seed_demo

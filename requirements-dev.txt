@@ -1,0 +1,14 @@
+# ---------------------------------------------------------------------------
+# Development and test-only dependencies
+# ---------------------------------------------------------------------------
+# Not installed in production. requirements.txt stays the list a running
+# service actually needs; this file is the list needed to run the test suite
+# on a developer machine or CI.
+#
+#     pip install -r requirements.txt -r requirements-dev.txt
+#
+# PyYAML is here because core/test_deployment.py parses render.yaml. The test
+# skips itself when PyYAML is absent, so a service that does not need it is
+# still not broken by its absence.
+# ---------------------------------------------------------------------------
+PyYAML>=6.0

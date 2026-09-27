@@ -141,21 +141,32 @@ accounts on an invented database.
 ### `Using Python version 3.14.3 (default)`
 
 Render is on its own default instead of the pinned 3.12.10. The word
-**`(default)`** is the tell: it means the pin was not picked up, not that the
-pin is wrong.
+**`(default)`** is the tell: it means no pin was found at all, not that the
+pin is wrong. A service created on or after 2026-02-11 defaults to 3.14.3,
+which is where the number comes from.
 
-Render reads the Python version from different places depending on how the
-service was created:
+Render resolves the Python version in this order, highest precedence first:
 
-| Source | Read for a Blueprint service | Read for a hand-made service |
-|---|---|---|
-| `.python-version` | yes | **yes** |
-| `runtime.txt` | yes | **yes** |
-| `PYTHON_VERSION` env var in `render.yaml` | yes | **no** |
+| Order | Source | Where you set it | Notes |
+|---|---|---|---|
+| 1 | `PYTHON_VERSION` env var | Service's **Environment** page | **Must be fully qualified** (`3.12.10`, not `3.12`) |
+| 2 | `.python-version` file | Repository root | Patch optional; `3.12` takes the latest 3.12.x |
+| 3 | Render's default | none | `3.14.3` for services created on or after 2026-02-11 |
 
-So `.python-version` is the pin that works either way. If you built the
-service by hand and the log still says 3.14, set `PYTHON_VERSION=3.12.10` in
-the dashboard's environment, or recreate the service as a Blueprint.
+`PYTHON_VERSION` is a **service environment variable**, not a Blueprint-only
+setting. It works on a service you made by hand exactly as it does on a
+Blueprint service, and it has the highest precedence of the three, so it is the
+one to set when the version has to be pinned right now.
+
+`runtime.txt` sits alongside `.python-version` in this repository, but it is
+not in Render's documented list of version sources. Keep it for Heroku and
+local tooling, which do read it, and do not rely on it to fix a Render
+version: set `PYTHON_VERSION` for that.
+
+For an **existing** service, set both. `.python-version` is already committed
+and is read on every deploy, so the service is pinned even if the environment
+variable is never added; `PYTHON_VERSION=3.12.10` is what makes it
+unambiguous and wins over everything else.
 
 ### A build command with a fragment glued onto the front
 
@@ -170,16 +181,74 @@ means two build commands were concatenated. This happens when a build
 command is typed into the dashboard *and* one is also set in `render.yaml`.
 They cannot both apply.
 
-Pick one:
-
-- **Blueprint (recommended).** Clear the Build Command field in the Render
-  dashboard and leave it to `render.yaml`.
-- **Hand-made service.** Clear nothing, and set the three commands by hand to
-  exactly what `render.yaml` has (see the three blocks below).
-
 If you cannot tell which mode the service is in, look at the build log: a
 Blueprint echoes the commands from `render.yaml` verbatim, including the
 `--no-cache-dir` and the `&&`.
+
+## Existing service: what to set by hand
+
+A service created in the dashboard does not read `render.yaml`. Nothing in
+this repository can change that; the service has to be configured in the
+dashboard, or replaced with a Blueprint. This section is the by-hand path for
+an existing service, and it is the whole fix.
+
+Two rules make it work. First, **the Build Command is emptied**, because
+that is what caused the concatenation: leaving the old one there and adding
+the new one is what produced `requirements.txtpip`. Second, `migrate` and
+`seed_demo` go in the pre-deploy command only, never in the build command,
+so a build that is started and abandoned cannot leave a half-migrated
+database.
+
+### Settings → Build
+
+| Field | Value |
+|---|---|
+| Build Command | *leave empty* |
+| Pre-deploy Command | `python manage.py migrate --no-input && python manage.py seed_demo` |
+| Start Command | `gunicorn hms_project.wsgi:application --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT --access-logfile - --error-logfile -` |
+
+### Environment
+
+Delete first, then add. A leftover row is what produced both
+`Duplicate key "hospital" is not allowed` and `Key Required`.
+
+- delete any row with an **empty key**
+- delete the row named **`hospital`** (the settings module never reads it)
+- delete any **second copy** of a key in the list below
+
+| Key | Value |
+|---|---|
+| `PYTHON_VERSION` | `3.12.10` |
+| `DJANGO_SECRET_KEY` | generate one: `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `DJANGO_DEBUG` | `0` |
+| `DJANGO_DB_ENGINE` | `sqlite` |
+| `DJANGO_ALLOWED_HOSTS` | your hostname, **no scheme**, e.g. `cdms-demo-xxxx.onrender.com` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | the same host **with scheme**, e.g. `https://cdms-demo-xxxx.onrender.com` |
+| `DJANGO_SESSION_COOKIE_SECURE` | `1` |
+| `DJANGO_CSRF_COOKIE_SECURE` | `1` |
+| `DJANGO_EMAIL_BACKEND` | `django.core.mail.backends.console.EmailBackend` |
+| `PYTHONUNBUFFERED` | `1` |
+
+`PYTHON_VERSION` has the highest precedence of Render's three version sources
+and must be fully qualified (`3.12.10`, never `3.12`), so setting it pins the
+service even if `.python-version` were somehow ignored. `.python-version` is
+committed and is read on every deploy regardless, which is the belt to this
+pair of braces.
+
+**The hostname is not known until the service has a name.** Use the host
+Render shows at the top of the service page, minus `https://`. Do not guess
+it: a wrong `DJANGO_ALLOWED_HOSTS` produces `DisallowedHost` on every request,
+and the log will name the host it expected.
+
+### Then deploy
+
+Trigger a deploy and read the log. These three lines are the pass condition:
+
+```
+Using Python version 3.12.10        <- not "3.14.3 (default)"
+Demo data ready.                   <- pre-deploy, from seed_demo
+Booting worker                     <- gunicorn
+```
 
 ### `Duplicate key "hospital" is not allowed`
 

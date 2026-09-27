@@ -159,6 +159,20 @@ class RenderYamlTests(SimpleTestCase):
             % EXPECTED_PYTHON,
         )
 
+    def test_python_version_env_var_is_fully_qualified(self):
+        # Render: "You must specify a fully qualified version (e.g. 3.13.5) if
+        # you use this method." PYTHON_VERSION has the highest precedence of the
+        # three version sources, so an abbreviated value there is not a soft
+        # fallback, it is ignored and the service runs on Render's default.
+        value = str(self.env_map()["PYTHON_VERSION"]["value"])
+        self.assertRegex(
+            value,
+            r"^\d+\.\d+\.\d+$",
+            "PYTHON_VERSION=%r is not fully qualified. Render ignores a "
+            "partial version here and uses its own default instead of "
+            "failing." % value,
+        )
+
     def test_every_env_var_key_is_non_empty(self):
         for entry in self.service["envVars"]:
             key = entry.get("key", "")
@@ -254,6 +268,23 @@ class RenderYamlTests(SimpleTestCase):
         # Without the bind Render cannot reach the app at all.
         self.assertNotIn("127.0.0.1", start)
 
+    def test_procfile_matches_the_render_start_command(self):
+        # Render runs the Procfile through a shell, so ${VAR:-default} would
+        # work there, but gunicorn parses the literal string itself and
+        # rejects it: "invalid int value: '${WEB_CONCURRENCY:-2}'". That means
+        # `gunicorn --check-config` cannot validate the Procfile, and a broken
+        # fallback is one nobody can test. Keeping it byte-identical to
+        # startCommand means both are checkable and the two cannot drift.
+        procfile = PROCFILE.read_text(encoding="utf-8").strip()
+        self.assertTrue(procfile.startswith("web: "), "Procfile needs a web process")
+        command = procfile[len("web: ") :]
+        self.assertEqual(
+            " ".join(command.split()),
+            " ".join(self.service["startCommand"].split()),
+            "the Procfile fallback and the Render start command have diverged",
+        )
+        self.assertNotIn("${", command, "gunicorn cannot parse shell expansion")
+
     def test_health_check_is_a_public_page(self):
         self.assertEqual(self.service["healthCheckPath"], "/accounts/login/")
 
@@ -268,7 +299,9 @@ class PythonVersionPinTests(SimpleTestCase):
     """
     Render reads .python-version for every Python service, including one
     created by hand rather than from the blueprint, so this is the pin that
-    survives a service someone made in the dashboard.
+    survives a service someone made in the dashboard. It is second in
+    precedence behind PYTHON_VERSION and is the one that needs no dashboard
+    access to set.
     """
 
     def test_python_version_file_matches(self):
@@ -285,10 +318,10 @@ class PythonVersionPinTests(SimpleTestCase):
     def test_procfile_binds_the_render_port(self):
         # If Render ever falls back to the Procfile, a missing $PORT bind
         # leaves gunicorn on 127.0.0.1:8000 and nothing can reach it.
-        procfile = PROCFILE.read_text(encoding="utf-8")
-        self.assertIn("hms_project.wsgi:application", procfile)
-        self.assertIn("${PORT", procfile)
-        self.assertIn("0.0.0.0", procfile)
+        command = PROCFILE.read_text(encoding="utf-8")
+        self.assertIn("hms_project.wsgi:application", command)
+        self.assertIn("$PORT", command)
+        self.assertIn("0.0.0.0", command)
 
 
 class WsgiImportTests(SimpleTestCase):

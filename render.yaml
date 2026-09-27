@@ -8,9 +8,9 @@
 # It is deliberately NOT the production deployment:
 #
 #   * The database is SQLite in a local file. Render's filesystem is
-#     ephemeral, so the database is rebuilt by releaseCommand on every deploy
-#     and wiped on every restart. Demo data is invented and reseeded, but
-#     anything typed in by hand will be lost.
+#     ephemeral, so the database is rebuilt by preDeployCommand on every
+#     deploy and wiped on every restart. Demo data is invented and reseeded,
+#     but anything typed in by hand will be lost.
 #   * The free plan sleeps after 15 minutes of inactivity and takes ~1 minute
 #     to wake, so the first request after a pause is slow.
 #   * No patient data may ever be entered here.
@@ -112,13 +112,21 @@ services:
     # It must NOT run migrations or seed data: a build can be started and
     # abandoned, and a database that is half-migrated is harder to reason
     # about than one that is merely empty. Schema and demo data belong in
-    # releaseCommand below, which Render runs once, after a build succeeds.
+    # preDeployCommand below, which Render runs once, after a build succeeds.
     buildCommand: >-
       pip install --no-cache-dir -r requirements.txt
       && python manage.py collectstatic --no-input
 
-    # Runs after the build, before the new version serves traffic. migrate
-    # creates the schema in the fresh SQLite file and seed_demo fills it.
+    # Runs after the build succeeds, before the new version serves traffic.
+    # migrate creates the schema in the fresh SQLite file and seed_demo fills
+    # it. This is the step Render documents for migrations: "runs after the
+    # service's buildCommand but before its startCommand".
+    #
+    # The field is preDeployCommand. There is no releaseCommand: Render's
+    # blueprint schema sets additionalProperties false, so a releaseCommand
+    # key makes Render reject the whole blueprint with "is not valid under
+    # any of the given schemas" rather than ignoring the stray key. That is
+    # checked by core/test_deployment.py.
     #
     # seed_demo is idempotent and refuses to touch MySQL unless
     # --force-in-production is passed, which is deliberately NOT passed here:
@@ -128,7 +136,7 @@ services:
     # Note the hyphen: --no-input, not --noinput. Django does not accept the
     # shorter spelling, and it fails the step instead of waiting for a
     # prompt that will never come.
-    releaseCommand: >-
+    preDeployCommand: >-
       python manage.py migrate --no-input
       && python manage.py seed_demo
 

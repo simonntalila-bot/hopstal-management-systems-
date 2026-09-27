@@ -20,7 +20,7 @@ where it is. Production (MySQL on a real host) is a separate deployment, see
 | Hostname | `*.onrender.com` | `makongatiarg.co.tz` |
 
 Render's filesystem is ephemeral. Every deploy and every restart throws the
-SQLite file away, and `releaseCommand` rebuilds it from scratch. That is
+SQLite file away, and `preDeployCommand` rebuilds it from scratch. That is
 fine for invented demo data, but **anything typed into the demo by hand is
 lost**, and demo logins stop working after a restart until you log in again.
 
@@ -221,30 +221,71 @@ Demo data ready.        <- seed_demo
 Booting worker          <- gunicorn
 ```
 
-`Demo data ready.` comes from `releaseCommand`. If it is missing, the schema
+`Demo data ready.` comes from `preDeployCommand`. If it is missing, the schema
 and the demo data were never created, and every page that touches the database
 will fail.
 
 ## The three commands
 
-Build, release and start are three separate steps. Do not merge them.
+Build, pre-deploy and start are three separate steps. Do not merge them.
 
 | Step | Command | What it does |
 |---|---|---|
 | Build | `pip install --no-cache-dir -r requirements.txt && python manage.py collectstatic --no-input` | installs dependencies, collects static files |
-| Release | `python manage.py migrate --no-input && python manage.py seed_demo` | creates the schema, fills it with demo data |
+| Pre-deploy | `python manage.py migrate --no-input && python manage.py seed_demo` | creates the schema, fills it with demo data |
 | Start | `gunicorn hms_project.wsgi:application --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT --access-logfile - --error-logfile -` | serves the site |
 
 Migrations deliberately stay out of the build step: a build can be started and
 abandoned, and a half-migrated database is harder to reason about than an
-empty one. `--force-in-production` is deliberately absent from the release
+empty one. `--force-in-production` is deliberately absent from the pre-deploy
 command, so that a database accidentally pointed at MySQL fails loudly rather
 than being filled with invented patient records.
 
+### There is no `releaseCommand` on Render
+
+The pre-deploy step is called **`preDeployCommand`**. This is worth stating
+plainly, because the obvious name is wrong and the mistake is expensive:
+
+```yaml
+# WRONG - this makes Render reject the entire blueprint
+releaseCommand: python manage.py migrate --no-input
+
+# RIGHT
+preDeployCommand: python manage.py migrate --no-input
+```
+
+Render's blueprint schema sets `additionalProperties: false`, so an unknown
+key is not skipped, it fails the whole sync. The error is unhelpful, because it
+names the entire service object rather than the stray key:
+
+```
+{'type': 'web', 'name': 'cdms-demo', ...} is not valid under any of the
+given schemas
+```
+
+Nothing in that message says `releaseCommand` is the problem.
+
+Render's own fields for running something between the build and the start are
+`preDeployCommand` (every deploy, which is what migrations need) and
+`initialDeployHook` (first deploy only). Anything else you may have seen named
+`releaseCommand` is Heroku terminology, not Render's.
+
 `core/test_deployment.py` enforces all of this. It fails the suite if the
 commands are merged, if a command is duplicated, if a flag is misspelled, if
-`PYTHON_VERSION` is not 3.12.10, or if an environment variable key is empty or
-duplicated. Run it with:
+`PYTHON_VERSION` is not 3.12.10, if an environment variable key is empty or
+duplicated, or if the service carries any field Render has no schema entry for.
+
+To check the blueprint against the real schema without deploying, use the
+Render CLI, which is authoritative and catches anything the tests do not know
+about:
+
+```
+render blueprints validate render.yaml
+```
+
+It exits non-zero on failure. The schema is also published as JSON Schema at
+<https://render.com/schema/render.yaml.json> if you would rather validate it in
+an editor. Run the tests with:
 
 ```
 python manage.py test core.test_deployment --settings=hms_project.test_settings

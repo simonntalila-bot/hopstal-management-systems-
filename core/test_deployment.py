@@ -1,22 +1,29 @@
 """
 Tests for the Render deployment configuration.
 
-The failure this guards against was real: a build command got typed into the
-Render dashboard as well as being set in render.yaml, and the two were
-concatenated into
+Two real failures are guarded against here.
+
+The first was a build command typed into the Render dashboard as well as
+being set in render.yaml, so the two were concatenated into
 
     pip install -r requirements.txtpip install -r requirements.txt && ...
 
-and the log reported Python 3.14 because the blueprint was never read. Both
-are invisible to `manage.py check`, so they are pinned here instead.
+and the log reported Python 3.14 because the blueprint was never read.
 
-A duplicate mapping key is the other thing this catches: Render rejects
+The second is quieter and cost more to find. Render's blueprint schema sets
+`additionalProperties: false` on a service, and it has no `releaseCommand`
+field, so a blueprint using one is rejected whole with "is not valid under any
+of the given schemas" rather than skipping the stray key. The migrations have
+to go in `preDeployCommand`, which Render documents as running after the build
+and before the start. test_service_uses_only_real_render_fields is what stops
+that from coming back.
+
+A duplicate mapping key is the third thing this catches: Render rejects
 `Duplicate key "hospital" is not allowed` before the build even starts, and
 PyYAML silently keeps the last value for a repeated key by default, so a
 plain safe_load would not notice it.
 """
 
-import re
 import unittest
 from pathlib import Path
 
@@ -35,8 +42,35 @@ PYTHON_VERSION_FILE = BASE_DIR / ".python-version"
 RUNTIME_TXT = BASE_DIR / "runtime.txt"
 PROCFILE = BASE_DIR / "Procfile"
 
-# Kept in step with .python-version and runtime.txt by test_python_version_is_pinned_everywhere.
+# Kept in step with .python-version and runtime.txt by
+# test_python_version_is_pinned_everywhere.
 EXPECTED_PYTHON = "3.12.10"
+
+# The Render service fields this blueprint is allowed to use. Taken from
+# https://render.com/docs/blueprint-spec. Render rejects a service carrying any
+# key not in its schema, so an unknown key is a hard failure, not a warning.
+#
+# This is an allowlist of the fields in use, not of every field Render
+# supports, so it only has to grow when this blueprint grows.
+ALLOWED_SERVICE_FIELDS = {
+    "type",
+    "name",
+    "runtime",
+    "plan",
+    "region",
+    "rootDir",
+    "autoDeployTrigger",
+    "buildCommand",
+    "preDeployCommand",
+    "startCommand",
+    "healthCheckPath",
+    "envVars",
+}
+
+# Fields that read plausibly but do not exist. Each one silently replaced a real
+# field and the blueprint stopped syncing, so they are named explicitly to make
+# the failure obvious to whoever tries it next.
+NOT_A_RENDER_FIELD = ("releaseCommand", "afterDeployCommand", "postDeployCommand")
 
 
 def _no_duplicate_keys(loader, node, deep=False):
@@ -83,11 +117,46 @@ class RenderYamlTests(SimpleTestCase):
         self.assertEqual(self.service["type"], "web")
         self.assertEqual(self.service["runtime"], "python")
 
+    def test_service_uses_only_real_render_fields(self):
+        # Render's schema sets additionalProperties: false, so a key it does
+        # not know fails the whole blueprint sync. The error names the whole
+        # service object, which makes the stray key hard to spot by hand.
+        used = set(self.service)
+        unknown = used - ALLOWED_SERVICE_FIELDS
+        self.assertEqual(
+            unknown,
+            set(),
+            "render.yaml uses field(s) Render has no schema entry for: %s. "
+            "Render will reject the entire blueprint, not ignore the key."
+            % sorted(unknown),
+        )
+
+    def test_no_phantom_command_fields(self):
+        for field in NOT_A_RENDER_FIELD:
+            self.assertNotIn(
+                field,
+                self.service,
+                "%s is not a Render field. Use preDeployCommand, which runs "
+                "after the build and before the start." % field,
+            )
+
+    def test_migrations_are_in_pre_deploy_command(self):
+        # The step that creates the schema. If this key is wrong the build
+        # succeeds and the service then fails every request with no table.
+        self.assertIn(
+            "preDeployCommand",
+            self.service,
+            "migrate and seed_demo must run somewhere, and on Render that is "
+            "preDeployCommand",
+        )
+        self.assertNotIn("initialDeployHook", self.service)
+
     def test_python_version_is_3_12_10(self):
         self.assertEqual(
             self.env_map()["PYTHON_VERSION"]["value"],
             EXPECTED_PYTHON,
-            "PYTHON_VERSION must pin %s, not Render's default 3.14" % EXPECTED_PYTHON,
+            "PYTHON_VERSION must pin %s, not Render's default 3.14"
+            % EXPECTED_PYTHON,
         )
 
     def test_every_env_var_key_is_non_empty(self):
@@ -105,7 +174,8 @@ class RenderYamlTests(SimpleTestCase):
         self.assertEqual(
             len(keys),
             len(set(keys)),
-            "duplicate envVar keys: %s" % sorted({k for k in keys if keys.count(k) > 1}),
+            "duplicate envVar keys: %s"
+            % sorted({k for k in keys if keys.count(k) > 1}),
         )
 
     def test_no_hospital_key(self):
@@ -130,9 +200,7 @@ class RenderYamlTests(SimpleTestCase):
     def test_hostname_variables_wait_for_a_value(self):
         env = self.env_map()
         for key in ("DJANGO_ALLOWED_HOSTS", "DJANGO_CSRF_TRUSTED_ORIGINS"):
-            self.assertIn(
-                key, env, "%s must be declared" % key
-            )
+            self.assertIn(key, env, "%s must be declared" % key)
             self.assertIs(
                 env[key].get("sync"),
                 False,
@@ -156,27 +224,27 @@ class RenderYamlTests(SimpleTestCase):
             build.count("pip install"), 1, "pip install is repeated: %s" % build
         )
         self.assertEqual(
-            build.count("requirements.txt"), 1, "requirements.txt is repeated: %s" % build
+            build.count("requirements.txt"),
+            1,
+            "requirements.txt is repeated: %s" % build,
         )
-        # Schema and data belong in releaseCommand.
+        # Schema and data belong in preDeployCommand.
         for step in ("migrate", "seed_demo"):
-            self.assertNotIn(
-                step, build, "%s must not run in the build command" % step
-            )
+            self.assertNotIn(step, build, "%s must not run in the build command" % step)
 
-    def test_release_command_migrates_and_seeds(self):
-        release = _flatten(self.service["releaseCommand"])
-        self.assertIn("migrate --no-input", release)
-        self.assertIn("seed_demo", release)
-        self.assertNotIn("pip install", release)
-        self.assertNotIn("collectstatic", release)
+    def test_pre_deploy_command_migrates_and_seeds(self):
+        pre = _flatten(self.service["preDeployCommand"])
+        self.assertIn("migrate --no-input", pre)
+        self.assertIn("seed_demo", pre)
+        self.assertNotIn("pip install", pre)
+        self.assertNotIn("collectstatic", pre)
         # Deliberately absent: if the database is ever MySQL, seeding must fail
         # loudly instead of writing invented records into it.
-        self.assertNotIn("--force-in-production", release)
+        self.assertNotIn("--force-in-production", pre)
 
     def test_commands_use_the_correct_flag_spelling(self):
         # --noinput is not a Django flag. It fails the step.
-        for field in ("buildCommand", "releaseCommand"):
+        for field in ("buildCommand", "preDeployCommand"):
             self.assertNotIn("--noinput", _flatten(self.service[field]))
 
     def test_start_command_serves_the_wsgi_callable(self):
@@ -192,7 +260,7 @@ class RenderYamlTests(SimpleTestCase):
     def test_commands_are_single_strings(self):
         # A YAML list here becomes a multi-line command, which is how a
         # duplicate fragment ends up glued to the previous one.
-        for field in ("buildCommand", "releaseCommand", "startCommand"):
+        for field in ("buildCommand", "preDeployCommand", "startCommand"):
             self.assertIsInstance(self.service[field], str)
 
 

@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import BaseModel
@@ -92,22 +92,36 @@ class Admission(BaseModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
-        self.full_clean()
-        super().save(*args, **kwargs)
-        if is_new:
-            self.bed.status = "OCCUPIED"
-            self.bed.save(update_fields=["status", "updated_at"])
-            if self.encounter.status not in ("ADMITTED", "IN_WARD"):
-                self.encounter.status = "ADMITTED"
-                self.encounter.visit_type = "IPD"
-                self.encounter.save(update_fields=["status", "visit_type", "updated_at"])
+        # The bed status and the encounter status have to move together. Without
+        # a transaction the bed can be marked OCCUPIED while the encounter
+        # transition fails, leaving the ward out of step with the visit.
+        with transaction.atomic():
+            self.full_clean()
+            super().save(*args, **kwargs)
+            if is_new:
+                self.bed.status = "OCCUPIED"
+                self.bed.save(update_fields=["status", "updated_at"])
+                self.encounter.admit_to_ward(
+                    user=self.admitted_by,
+                    note="Admitted to %s" % self.bed,
+                )
 
     def discharge(self, user=None, notes=""):
         if self.discharged_at:
             raise ValidationError("Already discharged.")
-        self.discharged_at = timezone.now()
-        self.discharge_notes = notes
-        self.save(update_fields=["discharged_at", "discharge_notes", "updated_at"])
-        self.bed.status = "AVAILABLE"
-        self.bed.save(update_fields=["status", "updated_at"])
-        self.encounter.transition_to("DISCHARGED", user=user)
+        # The state machine is consulted first, and the whole thing is atomic, so
+        # a rejected discharge cannot leave the bed marked AVAILABLE with
+        # discharged_at stamped while the encounter still says ADMITTED. That
+        # half-written state was what let a second patient be admitted to a bed
+        # the system still believed was occupied. See docs/KNOWN_ISSUES.md
+        # (DISCHARGE_BUG).
+        with transaction.atomic():
+            self.encounter.discharge_from_ward(
+                user=user,
+                note=notes or "Discharged from ward",
+            )
+            self.discharged_at = timezone.now()
+            self.discharge_notes = notes
+            self.save(update_fields=["discharged_at", "discharge_notes", "updated_at"])
+            self.bed.status = "AVAILABLE"
+            self.bed.save(update_fields=["status", "updated_at"])

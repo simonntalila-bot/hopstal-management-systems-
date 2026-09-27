@@ -25,6 +25,7 @@ from pathlib import Path
 from django.contrib.messages import constants as message_constants
 from django.core.exceptions import ImproperlyConfigured
 import os
+import warnings
 
 # ---------------------------------------------------------------------------
 # BASE DIRECTORY
@@ -207,23 +208,59 @@ WSGI_APPLICATION = "hms_project.wsgi.application"
 # ---------------------------------------------------------------------------
 # DATABASE - MySQL (override password in local_settings.py)
 # ---------------------------------------------------------------------------
-import pymysql
-pymysql.install_as_MySQLdb()
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": os.environ.get("DB_NAME", "hms_db"),
-        "USER": os.environ.get("DB_USER", "hms_user"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", ""),
-        "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("DB_PORT", "3306"),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+# MySQL is the production engine and the default. SQLite is reachable only by
+# asking for it explicitly:
+#
+#   DJANGO_DB_ENGINE=sqlite python manage.py migrate
+#
+# That is for local demos, screenshots and offline work, where spinning up
+# MySQL is more trouble than the demo is worth. It is deliberately not
+# automatic: a database that changes because a variable went missing is how
+# a production site ends up writing patient records into a local file.
+#
+# Nothing else in this file needs to know which engine is in use.
+if os.environ.get("DJANGO_DB_ENGINE", "").strip().lower() == "sqlite":
+    # A separate variable from DB_NAME, which names a MySQL database. Reusing
+    # it would let a leftover DB_NAME=argentina silently become a file called
+    # "argentina" in the project root.
+    _sqlite_name = os.environ.get("DJANGO_SQLITE_NAME", "").strip()
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": _sqlite_name or str(BASE_DIR / "db.sqlite3"),
+            # A local file has no server to wait on, and these keep the demo
+            # usable while a browser tab is open.
+            "OPTIONS": {"timeout": 20},
+        }
     }
-}
+    if not DEBUG:
+        # Loud, not fatal: the demo legitimately runs with DEBUG off, but a
+        # production site must never end up here without someone noticing.
+        warnings.warn(
+            "Running on SQLite (DJANGO_DB_ENGINE=sqlite) with DEBUG off. "
+            "This is a single local file, not the production database. "
+            "Patient records must not be entered here.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+else:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": os.environ.get("DB_NAME", "hms_db"),
+            "USER": os.environ.get("DB_USER", "hms_user"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", ""),
+            "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("DB_PORT", "3306"),
+            "OPTIONS": {
+                "charset": "utf8mb4",
+                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -434,3 +471,21 @@ try:
     from .local_settings import *  # noqa: F401, F403
 except ImportError:
     pass
+
+
+# ---------------------------------------------------------------------------
+# EXPLICIT SQLITE REQUEST WINS OVER local_settings.py
+# ---------------------------------------------------------------------------
+# local_settings.py is applied last, and it hard-codes MySQL, so on a machine
+# that has it the switch above would be quietly undone. An explicit
+# DJANGO_DB_ENGINE=sqlite in the environment is a deliberate instruction for
+# this one command, so it is honoured after the fact. Same precedence as .env
+# versus a real environment variable, applied in the opposite direction.
+if os.environ.get("DJANGO_DB_ENGINE", "").strip().lower() == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": _sqlite_name or str(BASE_DIR / "db.sqlite3"),
+            "OPTIONS": {"timeout": 20},
+        }
+    }

@@ -23,7 +23,7 @@ from patients.models import Patient
 
 class EncounterManager(models.Manager):
     def open(self):
-        return self.exclude(status__in=["COMPLETED", "CANCELLED"])
+        return self.exclude(status__in=["COMPLETED", "CANCELLED", "DISCHARGED"])
 
     def payment_pending(self):
         return self.filter(status="PAYMENT_PENDING")
@@ -52,35 +52,60 @@ class Encounter(BaseModel):
         ("PHARMACY", "Pharmacy"),
     ]
 
+    # ADMITTED / IN_WARD / DISCHARGED are the inpatient statuses. bed_management
+    # writes them, so they have to be part of the state machine; leaving them
+    # out made Admission.discharge() raise on every call. See
+    # docs/KNOWN_ISSUES.md (DISCHARGE_BUG) for the full write-up.
+    INPATIENT_STATUSES = ("ADMITTED", "IN_WARD")
+
     STATUS_CHOICES = [
         ("REGISTERED", "Registered"),
         ("PAYMENT_PENDING", "Payment Pending"),
         ("IN_PROGRESS", "In Progress"),
         ("RESULTS_READY", "Results Ready"),
         ("PRESCRIPTION_WRITTEN", "Prescription Written"),
+        ("ADMITTED", "Admitted"),
+        ("IN_WARD", "In Ward"),
+        ("DISCHARGED", "Discharged"),
         ("COMPLETED", "Completed"),
         ("CANCELLED", "Cancelled"),
     ]
 
     VALID_TRANSITIONS = {
-        "REGISTERED": {"PAYMENT_PENDING", "IN_PROGRESS", "CANCELLED"},
-        "PAYMENT_PENDING": {"IN_PROGRESS", "CANCELLED"},
+        "REGISTERED": {"PAYMENT_PENDING", "IN_PROGRESS", "CANCELLED", "ADMITTED"},
+        "PAYMENT_PENDING": {"IN_PROGRESS", "CANCELLED", "ADMITTED"},
         "IN_PROGRESS": {
             "PAYMENT_PENDING",
             "RESULTS_READY",
             "PRESCRIPTION_WRITTEN",
             "COMPLETED",
             "CANCELLED",
+            "ADMITTED",
+            "IN_WARD",
         },
         "RESULTS_READY": {
             "IN_PROGRESS",
             "PAYMENT_PENDING",
             "COMPLETED",
             "CANCELLED",
+            "ADMITTED",
+            "IN_WARD",
         },
-        "PRESCRIPTION_WRITTEN": {"PAYMENT_PENDING", "COMPLETED", "CANCELLED"},
-        "COMPLETED": set(),
+        "PRESCRIPTION_WRITTEN": {
+            "PAYMENT_PENDING",
+            "COMPLETED",
+            "CANCELLED",
+            "ADMITTED",
+            "IN_WARD",
+        },
+        # COMPLETED is not terminal any more: a visit that finished outpatient
+        # care can still be admitted to a bed, and Admission.save() drives the
+        # transition through the state machine. CANCELLED stays terminal.
+        "COMPLETED": {"ADMITTED"},
         "CANCELLED": set(),
+        "ADMITTED": {"IN_WARD", "DISCHARGED", "CANCELLED"},
+        "IN_WARD": {"ADMITTED", "DISCHARGED", "CANCELLED"},
+        "DISCHARGED": set(),
     }
 
     patient = models.ForeignKey(
@@ -149,8 +174,12 @@ class Encounter(BaseModel):
         if department:
             self.current_department = department
 
-        if new_status in ("COMPLETED", "CANCELLED"):
+        if new_status in ("COMPLETED", "CANCELLED", "DISCHARGED"):
             self.closed_at = timezone.now()
+        elif new_status in self.INPATIENT_STATUSES:
+            # An inpatient stay is live work, so the visit is not closed even if
+            # it had been finished as an outpatient encounter beforehand.
+            self.closed_at = None
 
         self.save()
 
@@ -219,6 +248,36 @@ class Encounter(BaseModel):
             user=user,
             department=self.current_department,
             note=note or f"Paid – released to {self.current_department}",
+        )
+
+    # -- inpatient --------------------------------------------------------
+    def is_inpatient(self):
+        return self.visit_type == "IPD" or self.status in self.INPATIENT_STATUSES
+
+    def admit_to_ward(self, user=None, department=None, note=""):
+        """
+        Move the visit into the inpatient phase.
+
+        Routed through transition_to so the state machine stays the single
+        authority on status changes, instead of bed_management writing the
+        field directly.
+        """
+        if self.status in self.INPATIENT_STATUSES:
+            return
+        self.visit_type = "IPD"
+        self.transition_to(
+            "ADMITTED",
+            user=user,
+            department=department,
+            note=note or "Admitted to ward",
+        )
+
+    def discharge_from_ward(self, user=None, note=""):
+        """Close out an inpatient stay. Raises unless the visit is in a ward."""
+        self.transition_to(
+            "DISCHARGED",
+            user=user,
+            note=note or "Discharged from ward",
         )
 
 

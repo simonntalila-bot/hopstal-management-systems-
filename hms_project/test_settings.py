@@ -15,6 +15,7 @@ Never use this module to serve the application.
 """
 
 import os
+import tempfile
 
 # Must be set BEFORE importing settings: settings.py refuses to initialise with
 # the public placeholder key, and the assignment below would happen too late.
@@ -51,4 +52,11 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-MEDIA_ROOT = None
+# MEDIA_ROOT must be a real path. Django 5's InMemoryStorage resolves
+# MEDIA_ROOT on first access, so the None that used to be set here made any
+# test touching a FileField fail with
+# "TypeError: _path_normpath: path should be string, bytes or os.PathLike,
+# not NoneType" before it reached a single assertion. A throwaway directory
+# keeps those tests working and still writes nothing into the project.
+MEDIA_ROOT = os.path.join(tempfile.gettempdir(), "cdms-test-media")
+os.makedirs(MEDIA_ROOT, exist_ok=True)

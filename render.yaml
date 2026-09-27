@@ -1,0 +1,117 @@
+# ---------------------------------------------------------------------------
+# Render blueprint - DEMO / TEST ONLY
+# ---------------------------------------------------------------------------
+# This serves a public read-only-ish DEMO of the CDMS on Render's free plan.
+#
+#   GitHub  ->  Render  ->  Django CDMS demo  ->  https://<name>.onrender.com
+#
+# It is deliberately NOT the production deployment:
+#
+#   * The database is SQLite in a local file. Render's filesystem is
+#     ephemeral, so the database is rebuilt by releaseCommand on every deploy
+#     and wiped on every restart. Demo data is invented and reseeded, but
+#     anything typed in by hand will be lost.
+#   * The free plan sleeps after 15 minutes of inactivity and takes ~1 minute
+#     to wake, so the first request after a pause is slow.
+#   * No patient data may ever be entered here.
+#
+# Production remains MySQL on a real host behind nginx. See
+# docs/DEPLOYMENT.md for that path and docs/RENDER_DEPLOYMENT.md for the
+# step-by-step Render walkthrough.
+#
+# Nothing in makongatiarg.co.tz is touched by this file. Render gets its own
+# onrender.com hostname.
+# ---------------------------------------------------------------------------
+
+services:
+  - type: web
+    name: cdms-demo
+    runtime: python
+    plan: free
+    region: frankfurt
+
+    # Pinned so Render cannot silently move the demo onto a Python that
+    # requirements.txt was never tested against. Matches runtime.txt.
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+
+      # --- Secrets ---------------------------------------------------------
+      # generateValue makes Render create a real random key per service.
+      # Nothing secret is ever written into this file, and the placeholder
+      # key in settings.py refuses to boot, so the demo cannot accidentally
+      # run signed with a key published on GitHub.
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+
+      # --- Core Django -----------------------------------------------------
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: DJANGO_DB_ENGINE
+        value: sqlite
+
+      # --- Hostname --------------------------------------------------------
+      # sync: false asks you for this in the Render dashboard, because the
+      # hostname does not exist until the service is created. Set it to the
+      # EXACT host Render gives you, no scheme and no trailing slash:
+      #     cdms-demo
+      # A bare ".onrender.com" would also work but matches every Render
+      # service, which is looser than this demo needs.
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+
+      # Same value as above but with https:// on the front. Django refuses a
+      # CSRF origin that has no scheme, so this one must not be bare.
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        sync: false
+
+      # Render terminates TLS and sets X-Forwarded-Proto, and
+      # SECURE_PROXY_SSL_HEADER is already configured in settings.py, so the
+      # secure cookies below are safe to turn on: the site is always HTTPS.
+      # SECURE_SSL_REDIRECT and HSTS are deliberately left off because Render
+      # already redirects to HTTPS and manages the certificate.
+      - key: DJANGO_SESSION_COOKIE_SECURE
+        value: "1"
+      - key: DJANGO_CSRF_COOKIE_SECURE
+        value: "1"
+
+      # --- Email -----------------------------------------------------------
+      # Demo only. Password-reset emails print into the Render log instead of
+      # being delivered. Do not put real mail credentials here.
+      - key: DJANGO_EMAIL_BACKEND
+        value: django.core.mail.backends.console.EmailBackend
+
+      # --- Logging ---------------------------------------------------------
+      # Without this, Python buffers stdout and the Render log appears empty
+      # until the buffer fills, which makes 500s very hard to debug.
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+    buildCommand: >-
+      pip install --no-cache-dir -r requirements.txt
+      && python manage.py collectstatic --no-input
+
+    # Runs after the build, before the new version serves traffic. migrate
+    # creates the schema in the fresh SQLite file and seed_demo fills it.
+    #
+    # seed_demo is idempotent and refuses to touch MySQL unless
+    # --force-in-production is passed, which is deliberately NOT passed here:
+    # if the database is ever misconfigured to MySQL, this command fails loudly
+    # instead of writing invented patient records into the real database.
+    releaseCommand: >-
+      python manage.py migrate --no-input
+      && python manage.py seed_demo
+
+    # The callable Render starts is hms_project.wsgi:application. WhiteNoise
+    # serves everything in STATIC_ROOT, so no nginx is needed. --threads 4
+    # keeps the free tier's 0.1 CPU busy while requests wait on SQLite.
+    startCommand: >-
+      gunicorn hms_project.wsgi:application
+      --workers 2
+      --threads 4
+      --timeout 120
+      --bind 0.0.0.0:$PORT
+      --access-logfile -
+      --error-logfile -
+
+    healthCheckPath: /accounts/login/
